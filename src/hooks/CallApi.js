@@ -1,4 +1,4 @@
-export const GetSpeechResponse = async(text, voice) => {
+export const GetSpeechResponse = async(text, voice = "679de93ad4634728900347063142e930") => {
     const payload = {
             text : text,
             voice : voice

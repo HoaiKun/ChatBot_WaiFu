@@ -2,8 +2,8 @@ from openai import AsyncOpenAI, OpenAI
 from fastapi.responses import StreamingResponse
 from dotenv import load_dotenv
 import os
-from PromptFormat import Vector_DB_Format, Norma_ChatFormat
-from Chroma_DB import SaveMemoryToVectorDB, SearchMemoryDB, loadDB
+from .PromptFormat import Vector_DB_Format, Norma_ChatFormat
+from .Chroma_DB import SaveMemoryToVectorDB, SearchMemoryDB, loadDB
 import asyncio
 load_dotenv()
 api_key = os.getenv("OPENAI_API_KEY")
@@ -20,6 +20,7 @@ loadDB()
 async def get_chat_response(chatHistory:list, model: str = "gpt-4o"):
     userMessage = chatHistory[-1]["content"]
     context = SearchMemoryDB(userMessage)
+    print(f"Context: {context}")
     systemContent =  (
          "You are a cute outgoing cute tricky girlfriend as well as assistant. Use the following context to keep the conversation up"
          f"Context: {context}"
@@ -40,7 +41,7 @@ async def get_chat_response(chatHistory:list, model: str = "gpt-4o"):
     async with client.beta.chat.completions.stream(
         model=mainmodel,
         response_format= Norma_ChatFormat,
-        temperature=0.6,
+        temperature=0.7,
         messages=[systemMessage,*chatHistory],
     ) as response:
         message_marker = '"message":'
@@ -86,7 +87,6 @@ async def get_chat_response(chatHistory:list, model: str = "gpt-4o"):
                                             start_index = full_text.find(animation_marker) + len(animation_marker)
                                             actual_content_start_id = full_text.find('"', start_index) + 1
                                          if actual_content_start_id > 0:
-                                             print(f"CHECKPOINT{animation}")
                                              main_text_lastindex = actual_content_start_id
                                              message_started = True
                                              yield f"__ANIMATION__:{animation} "
@@ -110,7 +110,7 @@ async def get_chat_response(chatHistory:list, model: str = "gpt-4o"):
 
 async def save_chat_response(userMes:str, botRep:str, emotion:str = "neutral"):
     systemMessage = (
-            "You are the Memory Architect for a Waifu AI. Your job is to extract and structure memories from the conversation and fill data into format, all field must have value.\n\n"
+            "You are the Memory as well as context summarizer. Your job is to extract and structure memories from the conversation and fill data into format, all field must have value.\n\n"
         )
     response_memory = await client.beta.chat.completions.parse(
 
@@ -123,7 +123,7 @@ async def save_chat_response(userMes:str, botRep:str, emotion:str = "neutral"):
             },
             {
                 "role":"user",
-                "content":"User: "+ userMes + "Assistant: " + botRep + "Bot-Emotion:"
+                "content": "Converstaion: {" "User: "+ userMes + "Assistant: " + botRep +"}"
             }
 
         ]

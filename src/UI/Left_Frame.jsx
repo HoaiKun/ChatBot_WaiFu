@@ -1,11 +1,15 @@
-import React, { useState } from  'react';
+import React, { useState, useRef } from  'react';
 import ChatFrame from './ChatFrame';
 import { GetChatResponse, GetSpeechResponse} from '../hooks/CallApi';
+
+
 const ChatBox = () => {
     const [chatHistory, setChatHistory] = useState([]);
     const [userMessage, setUserMessage] = useState("");
     const [model, setModel] = useState("");
     const [isLoading, setIsLoading] = useState(false);
+    let audioQueue = useRef([]);
+    let IsAudioPlaying = useRef(false);
     const OnSubmitForm = async (e) => {
         e.preventDefault();
         if(!userMessage.trim() || isLoading)
@@ -22,9 +26,57 @@ const ChatBox = () => {
             content: ""
         }
         setUserMessage("");
+
+        let sentence = "";
+        const sentenceEndings = /[.!?\n。！？]/;
+
+        
         const HistoryToSend = [...chatHistory, UserMessageObj];
+        
         setChatHistory((prev) => [...prev,UserMessageObj, AssistantMessageObj ]);
+
         let bottext = "";
+
+ 
+        
+        const startTalking = async (text) => {
+
+            if(IsAudioPlaying.current == true) return;
+            IsAudioPlaying.current= true;
+            while(audioQueue.current.length > 0)
+            {
+                const PotentialURL = audioQueue.current.shift();
+                const url = await PotentialURL;
+                await new Promise(resolve => {
+                const audio = new Audio(url);
+                audio.play().then(() => {
+                console.log("Audio đang phát...");
+                }).catch(err => {
+                    console.error("Trình duyệt chặn phát hoặc lỗi file:", err);
+                    resolve(); // Lỗi thì bỏ qua để phát câu sau
+                });
+
+                audio.onended = () => {
+                    console.log("Phát xong 1 câu.");
+                    resolve();
+                };
+
+            audio.onerror = () => {
+                console.error("Lỗi tải file audio.");
+                resolve();
+            };
+        });
+                URL.revokeObjectURL(url);
+                if (audioQueue.current.length > 0) {
+                    const pause = 200 + Math.floor(Math.random() * 150);
+                    await new Promise(res => setTimeout(res, pause));
+                }
+                
+            }
+            IsAudioPlaying.current = false;
+    }
+
+
         try{
             const reader = await GetChatResponse(HistoryToSend, "gpt-4o")
             const decoder = new TextDecoder();
@@ -34,15 +86,31 @@ const ChatBox = () => {
                 const chunk = decoder.decode(value);
                 if(chunk.startsWith("__EMOTION__:"))
                 {
-                    const emotion = chunk.replace("__EMOTION__:", "").trim();
+                    let emotion = chunk.replace("__EMOTION__:", "").trim();
                 }
                 else if(chunk.startsWith("__ANIMATION__:"))
                 {
-                    const animation = chunk.replace("__ANIMATION__","").trim();
+                    let animation = chunk.replace("__ANIMATION__","").trim();
                 }
                 else
                 {
-                    bottext += chunk;
+                    sentence += chunk;
+                    const end_sentence = sentence.match(sentenceEndings);
+                    if(end_sentence)
+                    {
+                            const sentence_end_index = end_sentence.index;
+                            const completedSetence = sentence.slice(0, sentence_end_index+1).trim();
+                            sentence = sentence.slice(sentence_end_index+1);
+                            if(completedSetence.length > 2)
+                            {
+                                console.log(completedSetence)
+                                const speechPromise = GetSpeechResponse(completedSetence);
+                                audioQueue.current.push(speechPromise);
+                                startTalking();
+                            
+                                
+                            }
+                    }
                     setChatHistory(prev => {
                     const newHistory = [...prev];
                     const lastIndex = newHistory.length - 1;
@@ -61,14 +129,6 @@ const ChatBox = () => {
         finally{
             setIsLoading(false);
         }
-        
-        const audio_url = await GetSpeechResponse(bottext)
-        const audio = new Audio(audio_url);
-        audio.play();
-        audio.opened = () =>
-        {
-            URL.revokeObjectURL(audio_url);
-        };
     }
 
 

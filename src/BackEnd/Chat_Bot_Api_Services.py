@@ -1,10 +1,10 @@
 from fastapi import FastAPI, APIRouter
 from fastapi.responses import StreamingResponse
 from fastapi.middleware.cors import CORSMiddleware
-from Chat_Bot_Main import get_chat_response
-from OpenAI_TTS import VoiceGenerate
+from .Chat_Bot_Main import get_chat_response
 from typing import List, Optional
 from pydantic import BaseModel
+from .Fish_TTS import SpeechGenerate
 Api_App = FastAPI()
 
 # 1. Cấu hình CORS cho React
@@ -23,7 +23,7 @@ class ChatPayloadFormat(BaseModel):
     model: Optional[str] = "gpt-4o"
 class SpeechRequestFormat(BaseModel):
     text: str # Đổi thành 'text' cho khớp với hook Frontend của ông giáo
-    voice: str = "nova"
+    voice: str = "679de93ad4634728900347063142e930"
 @router.post("/GetChatResponse")
 async def post_chat_respose(payload: ChatPayloadFormat):
     chatHistory = payload.message
@@ -36,6 +36,6 @@ async def post_chat_respose(payload: ChatPayloadFormat):
 async def post_chat_speech(payload: SpeechRequestFormat):
     text = payload.text
     voice = payload.voice
-    speech_generator = await VoiceGenerate(text=text,voice = voice)
+    speech_generator =  SpeechGenerate(text=text,voice = voice)
     return StreamingResponse(speech_generator, media_type="audio/mpeg")
 Api_App.include_router(router)

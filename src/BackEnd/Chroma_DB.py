@@ -4,7 +4,7 @@ import json
 import os
 from dotenv import load_dotenv
 from datetime import datetime
-from PromptFormat import Vector_DB_Format
+from .PromptFormat import Vector_DB_Format
 
 load_dotenv()
 apikey =  os.getenv("OPENAI_API_KEY")
