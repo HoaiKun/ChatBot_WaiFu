@@ -2,11 +2,11 @@ from fastapi import FastAPI, APIRouter
 from fastapi.responses import StreamingResponse
 from fastapi.middleware.cors import CORSMiddleware
 from .Chat_Bot_Main import get_chat_response
-from typing import List, Optional
+from typing import List, Optional, Union, Any
 from pydantic import BaseModel
 from .Fish_TTS import SpeechGenerate
 from fastapi.staticfiles import StaticFiles;
-from .Image_Generate import Generate_img
+from .Image_Generate import Generate_Img_Tool, Generate_img
 from .PromptFormat import Image_Generation_Prompt_Format
 import io
 import base64
@@ -23,8 +23,13 @@ router = APIRouter(prefix="/api/v1")
 
 Api_App.mount("/Generated_image", StaticFiles(directory="Generated_image"), name="images")
 
+
+class ChatMessage(BaseModel):
+    role: str
+    content: Union[str, List[dict]]
+
 class ChatPayloadFormat(BaseModel):
-    message: List[dict]
+    message: List[ChatMessage]
     model: Optional[str] = "gpt-4o"
 class SpeechRequestFormat(BaseModel):
     text: str # Đổi thành 'text' cho khớp với hook Frontend của ông giáo

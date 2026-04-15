@@ -5,21 +5,26 @@ import os
 from .PromptFormat import Vector_DB_Format, Norma_ChatFormat
 from .Chroma_DB import SaveMemoryToVectorDB, SearchMemoryDB, loadDB
 import asyncio
+import inspect
+from pydantic import TypeAdapter
+from .Image_Generate import Generate_Img_Tool
 load_dotenv()
 api_key = os.getenv("OPENAI_API_KEY")
 client = AsyncOpenAI(
     api_key= api_key
 )
-chatHistory = [
-    {
-    "role":"user",
-    "content":"hello, what is your name"
-    }
-]
 loadDB()
+
+tools = []
+tools.append(Generate_Img_Tool)
 async def get_chat_response(chatHistory:list, model: str = "gpt-4o"):
-    userMessage = chatHistory[-1]["content"]
-    context = SearchMemoryDB(userMessage)
+    userMessage = chatHistory[-1].content
+    print(userMessage)
+    context_string = userMessage
+    if isinstance(userMessage, list):
+         context_string = next((item['text'] for item in userMessage if item.get('type') == 'text'),"" )
+    
+    context = SearchMemoryDB(context_string)
     print(f"Context: {context}")
     systemContent =  (
          "You are a cute outgoing cute tricky flirty girlfriend as well as assistant. Use the following context to keep the conversation up"
@@ -31,19 +36,20 @@ async def get_chat_response(chatHistory:list, model: str = "gpt-4o"):
     "- If you are teasing the user, increase joy (index 1) and surprise (index 5).\n"
     "- Always provide exactly 7 values in the list."
     "-Always fill animation with action, default is idle"
+    "You have the ability to see and analyze images provided by the user. When an image is present, describe it playfully as part of your flirtatious personality."
 )
     
     
     systemMessage = {"role" : "system", "content": systemContent}
     mainmodel=model
-    if(model):
-        mainmodel=model
+    print(f"Model: {mainmodel}")
     async with client.beta.chat.completions.stream(
         model=mainmodel,
         response_format= Norma_ChatFormat,
         temperature=0.7,
         messages=[systemMessage,*chatHistory],
     ) as response:
+        is_tool_call = False
         message_marker = '"message":'
         animation_marker = '"animation":'
         animation_started = False
@@ -55,8 +61,9 @@ async def get_chat_response(chatHistory:list, model: str = "gpt-4o"):
         main_text_lastindex = 0
         async for event in response:
                 chunk =None
-                if event.type == "chunk":
-                    chunk= event.chunk.choices[0].delta.content
+                if event.type == "content.delta":
+   
+                    chunk= event.delta
                     if chunk:
                         full_text += chunk
                         if not emotion:
@@ -96,15 +103,16 @@ async def get_chat_response(chatHistory:list, model: str = "gpt-4o"):
                         if message_started:
                              main_content = full_text[main_text_lastindex:]
                              clean_content = main_content.replace('"}', '').replace('}', '')
-                             
                              yield clean_content
                              main_text_lastindex = len(full_text)
+
+        print(full_text)
         print(emotion)
         print(animation)
         final_completion = await response.get_final_completion()
         bot_obj = final_completion.choices[0].message.parsed
         if bot_obj:
-              asyncio.create_task(save_chat_response(userMes=userMessage, botRep=bot_obj.message))  
+              asyncio.create_task(save_chat_response(userMes=context_string, botRep=bot_obj.message))  
              
     
 
