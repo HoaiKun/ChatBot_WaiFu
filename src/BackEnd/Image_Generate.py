@@ -1,9 +1,10 @@
 import torch 
 from diffusers import StableDiffusionPipeline,DPMSolverMultistepScheduler
 from PIL.Image import Image
-from PromptFormat import Image_Generation_Prompt_Format
+from .PromptFormat import Image_Generation_Prompt_Format
 import asyncio
-
+import os
+import uuid
 pipeline = StableDiffusionPipeline.from_pretrained(
     "Meina/MeinaMix_V11", 
     torch_dtype = torch.float16 ,
@@ -21,7 +22,11 @@ device = 'mps' if torch.backends.mps.is_available() else device
 
 pipeline.to(device)
 
+if not os.path.exists("Generated_image"):
+    os.makedirs("Generated_image")
+
 async def Generate_img(prompt: Image_Generation_Prompt_Format) -> Image:
+    
     image: Image =  pipeline(
         prompt = prompt.prompt,
         negative_prompt=prompt.negative_promt,
@@ -29,4 +34,8 @@ async def Generate_img(prompt: Image_Generation_Prompt_Format) -> Image:
         height = prompt.height,
         guidance_scale=prompt.guidance_scale,
         num_inference_steps=prompt.num_inference_steps).images[0]
-    return image
+    filename = f"{uuid.uuid4()}.png"
+    file_path = f"Generated_image/{filename}"
+    image.save(file_path)
+    image_url = f"http://localhost:8000/{file_path}"
+    return image_url

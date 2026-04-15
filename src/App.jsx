@@ -16,7 +16,7 @@ function App() {
       <div className = 'absolute inset-0 z-0'>
       <WaifuFace ></WaifuFace>
       </div>
-      <div className = 'relative z-10 m-5 w-1/2'v>
+      <div className = 'relative z-10 m-5 w-1/3'v>
         <ChatBox ></ChatBox>
       </div>
       

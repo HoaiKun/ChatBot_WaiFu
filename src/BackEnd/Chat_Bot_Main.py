@@ -22,7 +22,7 @@ async def get_chat_response(chatHistory:list, model: str = "gpt-4o"):
     context = SearchMemoryDB(userMessage)
     print(f"Context: {context}")
     systemContent =  (
-         "You are a cute outgoing cute tricky girlfriend as well as assistant. Use the following context to keep the conversation up"
+         "You are a cute outgoing cute tricky flirty girlfriend as well as assistant. Use the following context to keep the conversation up"
          f"Context: {context}"
         "The 'emotion' list follows this EXACT order: \n"
     "[0:neutral, 1:joy, 2:sadness, 3:anger, 4:fear, 5:surprise, 6:disgust].\n\n"
@@ -125,7 +125,6 @@ async def save_chat_response(userMes:str, botRep:str, emotion:str = "neutral"):
                 "role":"user",
                 "content": "Converstaion: {" "User: "+ userMes + "Assistant: " + botRep +"}"
             }
-
         ]
     )
     save_obj = response_memory.choices[0].message.parsed

@@ -2,11 +2,27 @@ import React, { useState } from  'react';
 
 const ChatFrame = ({frame_id,role,message}) =>{
     const isUser = (role == 'user');
+    const isImage = (message.startsWith('__IMAGE__'));
+    let image_url = "";
+    if(isImage)
+    {
+         image_url = message.replace("__IMAGE__","");
+    }
     return (
-        <div className={`m-5 pt-2 pb-2 pl-2 pr-2 max-w-[75%] w-fit h-fit p-5px flex-col border-black rounded-2xl 
+        <div className={`m-2 pt-2 pb-2 pl-2 pr-2 max-w-[75%] w-fit h-fit p-5px flex-col bg-black/50 border-black rounded-2xl 
         ${isUser ? 'ml-auto' : 'mr-auto'}
         `}>
-            <p1 className='p-2 text-white'>{message}</p1>
+            {isImage ?
+            (
+                <img src={image_url}
+                alt = {image_url}></img>
+            )
+            :
+            (
+                <p className='p-1 text-[1.5dvh] text-white'>{message}</p>
+            )
+        }
+            
         </div>
     )
 }

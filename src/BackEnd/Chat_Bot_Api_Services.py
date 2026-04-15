@@ -5,9 +5,13 @@ from .Chat_Bot_Main import get_chat_response
 from typing import List, Optional
 from pydantic import BaseModel
 from .Fish_TTS import SpeechGenerate
-Api_App = FastAPI()
+from fastapi.staticfiles import StaticFiles;
+from .Image_Generate import Generate_img
+from .PromptFormat import Image_Generation_Prompt_Format
+import io
+import base64
 
-# 1. Cấu hình CORS cho React
+Api_App = FastAPI()
 Api_App.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -17,6 +21,7 @@ Api_App.add_middleware(
 
 router = APIRouter(prefix="/api/v1")
 
+Api_App.mount("/Generated_image", StaticFiles(directory="Generated_image"), name="images")
 
 class ChatPayloadFormat(BaseModel):
     message: List[dict]
@@ -38,4 +43,14 @@ async def post_chat_speech(payload: SpeechRequestFormat):
     voice = payload.voice
     speech_generator =  SpeechGenerate(text=text,voice = voice)
     return StreamingResponse(speech_generator, media_type="audio/mpeg")
+
+
+class ImagePromptFormat(BaseModel):
+    prompt: str
+
+@router.post("/GenerateIMG")
+async def post_image_generate(prompt:ImagePromptFormat):
+    BasicPrompt = Image_Generation_Prompt_Format(prompt=prompt.prompt)
+    result = await Generate_img(BasicPrompt)
+    return {"role": "assistant", "content" : f"__IMAGE__{result}"}
 Api_App.include_router(router)
