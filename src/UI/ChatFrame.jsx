@@ -34,12 +34,12 @@ const ChatFrame = ({frame_id,role,message}) =>{
                 <div>
                 <img src={image_url}
                 alt = {image_url}></img>
-                 <p className='p-1 text-[1.5dvh] text-white'>{content}</p>
+                 <p className='whitespace-pre-line p-1 text-[1.5dvh] text-white'>{content}</p>
                 </div>
             )
             :
             (
-                 <p className='p-1 text-[1.5dvh] text-white'>{content}</p>
+                 <p className='whitespace-pre-line p-1 text-[1.5dvh] text-white'>{content}</p>
             )
         }
            

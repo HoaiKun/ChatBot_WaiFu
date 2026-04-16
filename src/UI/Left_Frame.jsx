@@ -317,7 +317,7 @@ const ChatBox = () => {
                     {
                         setOutlineRingColor("ring-green-200");
                         const Image_Result = await GetImageGenerate(ChosenTools[i].arguments);
-                        setChatHistory(prev => [...prev, {role:"assistant", content: Image_Result.content}]);
+                        setChatHistory(prev => [...prev, {role:"assistant", content: ResizeImage(Image_Result.content)}]);
                         setOutlineRingColor("ring-white");
                     }
                 }
@@ -325,7 +325,7 @@ const ChatBox = () => {
             else
             {
                 const Image_Result = await GetImageGenerate(userMessage);
-                setChatHistory(prev => [...prev, {role:"assistant", content: Image_Result.content}]);
+                setChatHistory(prev => [...prev, {role:"assistant", content: ResizeImage(Image_Result.content)}]);
             }
         }
         catch (err){
@@ -341,7 +341,7 @@ const ChatBox = () => {
 
     return(
         <div className={` hover:bg-gray-500/60 ${IsUITrasparent ? 'hover:opacity-100 opacity-0' : 'opacity-100'}   transition-all  w-full h-full border-5 rounded-4xl bg-transparent transform-3d border-gray-600 p-5 hover:border-pink-300  ease-in-out`}>
-            <div className=' mt-10 space-y-6 h-[70dvh] overflow-auto'>
+            <div className=' mt-10 space-y-6 h-[75dvh] overflow-auto'>
                 {chatHistory.map((chatMessage, i) =>(
                     <ChatFrame key={i} role={chatMessage.role} message={chatMessage.content}></ChatFrame>
                 ))}
