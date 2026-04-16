@@ -1,7 +1,7 @@
-import React, { useState, useRef } from  'react';
+import React, { useState, useRef, useEffect } from  'react';
 import ChatFrame from './ChatFrame';
 import { GetChatResponse, GetImageGenerate, GetSpeechResponse } from '../hooks/CallApi';
-
+import ConvertSpeechToText from './SpeechToText';
 
 const ChatBox = () => {
     const [chatHistory, setChatHistory] = useState([]);
@@ -17,6 +17,25 @@ const ChatBox = () => {
     const [IsChatModelBoxOpened, setIsChatModelBoxOpened] = useState(false);
     let ImageGeneratedChosen = useRef(false);
     const [IsUITrasparent, setIsUITransparent] = useState(false);
+    const {SpeechText, IsListening, startListening, stopListening, setSpeechText} = ConvertSpeechToText();
+    let SpeechQueue = useRef([]);
+    let IsAudioQueueRunning = useRef(false);
+    const HandleTexareKedown = (e) =>
+    {
+        if(e.key =='Enter' && !e.shiftKey)
+        {
+            e.preventDefault();
+            OnSubmitForm(e);
+        }
+    };
+
+    useEffect(() => {
+
+        setUserMessage(SpeechText);
+        
+    }, [SpeechText, IsListening]);
+
+
     const VoiceList = [
         {ID: 0, name: "No Voice"},
         {ID : 1, name:"Elysia"},
@@ -105,60 +124,21 @@ const ChatBox = () => {
             return;
         }
         setIsLoading(true);
-        let UserMessageObj =  {
-            role: "user",
-            content: userMessage
-        }
-        if(PasteImage != "" && PasteImage)
-        {
-            UserMessageObj = {
-                role: "user",
-                content: [
-                    {type:"text", text: userMessage},
-                    {type:"image_url", image_url:{url: await ResizeImage(PasteImage) } }
-                ]
-            }
-        }
-        const AssistantMessageObj = {
-            role: "assistant",
-            content: ""
-        }
         
-
-        let sentence = "";
+        
         const sentenceEndings = /[.!?\n。！？]/;
 
-        setChatHistory((prev) => [...prev,UserMessageObj]);
-        const HistoryToSend = [...chatHistory, UserMessageObj].map(msg =>
-        {
-            if(typeof(msg.content) ==='string')
-            {
-                const safeContent = msg.content || "";
-            
-                if(safeContent.startsWith("__IMAGE__"))
-                {
-                    return {
-                        ...msg,
-                        content:"[System: successfully create and send a picture]"
-                    }
-                
-                }
-                else{
-                    return msg;
-                }
-            }
-            else return msg;
-            
-        }
-        )
+        
+        
         
          setUserMessage("");
          setPasteImage("");
-         
+         if (IsListening) stopListening();
         let bottext = "";
 
+
         
-        const startTalking = async (text) => {
+        const startTalking = async () => {
 
             if(IsAudioPlaying.current == true) return;
             IsAudioPlaying.current= true;
@@ -198,10 +178,55 @@ const ChatBox = () => {
         }
 
         
-
         try{
+            let UserMessageObj =  {
+            role: "user",
+            content: userMessage
+            }
+            if(PasteImage != "" && PasteImage)
+            {
+                UserMessageObj = {
+                    role: "user",
+                    content: [
+                        {type:"text", text: userMessage},
+                        {type:"image_url", image_url:{url: await ResizeImage(PasteImage) } }
+                    ]
+                }
+            }
+            const AssistantMessageObj = {
+                role: "assistant",
+                content: ""
+            }
+            setChatHistory((prev) => [...prev,UserMessageObj]);
+
+            const HistoryToSend = [...chatHistory, UserMessageObj].map(msg =>
+            {
+            if(typeof(msg.content) ==='string')
+            {
+                const safeContent = msg.content || "";
+            
+                if(safeContent.startsWith("__IMAGE__"))
+                {
+                    return {
+                        ...msg,
+                        content:"[System: successfully create and send a picture]"
+                    }
+                
+                }
+                else{
+                    return msg;
+                }
+            }
+                else return msg;
+            
+            }
+            )
+            let sentence = "";
+            let speechBuffer = "";
+            let ChosenTools = [];
             if(!ImageGeneratedChosen.current)
             {
+                
                
                 const reader = await GetChatResponse(HistoryToSend, ChatModel)
                 const decoder = new TextDecoder();
@@ -218,6 +243,29 @@ const ChatBox = () => {
                     {
                         let animation = chunk.replace("__ANIMATION__","").trim();
                     }
+                    else if(chunk.startsWith("__TOOLS__:"))
+                    {
+                        const Tool_Data = chunk.replace("__TOOLS__:","").trim();
+                        try{
+                            if(Tool_Data == "null") 
+                            {
+
+                            }
+                            else
+                            {
+                                console.log("TOOL DATA THO " + Tool_Data);
+                                const toolJson = JSON.parse(Tool_Data);
+                                console.log(toolJson);
+                                ChosenTools.push(toolJson);
+                            }
+                            
+                        }
+                        catch(err)
+                        {
+                            console.error("KO lay dc tool");
+                        }
+                        
+                    }
                     else
                     {
                         if(VoiceModel != "No Voice")
@@ -229,18 +277,21 @@ const ChatBox = () => {
                                     const sentence_end_index = end_sentence.index;
                                     const completedSetence = sentence.slice(0, sentence_end_index+1).trim();
                                     sentence = sentence.slice(sentence_end_index+1);
-                                    if(completedSetence.length > 2)
+                                    if(completedSetence.length > 0)
                                     {
-                                        console.log(completedSetence)
-                                        const speechPromise = GetSpeechResponse(completedSetence);
-                                        audioQueue.current.push(speechPromise);
-                                        startTalking();
-                                    
-                                        
+                                        speechBuffer += completedSetence;
+
+                                            if(speechBuffer.length >=30)
+                                        {
+                                            const speechPromise = GetSpeechResponse(speechBuffer.trim());
+                                            audioQueue.current.push(speechPromise);
+                                            startTalking();
+                                            speechBuffer = "";
+                                        }  
                                     }
                             }
+                            
                         }
-                        
                         setChatHistory(prev => {
                         const newHistory = [...prev];
                         const lastIndex = newHistory.length - 1;
@@ -250,7 +301,25 @@ const ChatBox = () => {
                         };
                         return newHistory;
                     });
+
                     } 
+                }
+                if(speechBuffer.length >0)
+                {
+                    const speechPromise = GetSpeechResponse(speechBuffer);
+                    audioQueue.current.push(speechPromise);
+                    startTalking();
+                    speechBuffer = "";
+                }
+                for(let i = 0; i < ChosenTools.length; i++)
+                {
+                    if(ChosenTools[i].name == "GenerateImage")
+                    {
+                        setOutlineRingColor("ring-green-200");
+                        const Image_Result = await GetImageGenerate(ChosenTools[i].arguments);
+                        setChatHistory(prev => [...prev, {role:"assistant", content: Image_Result.content}]);
+                        setOutlineRingColor("ring-white");
+                    }
                 }
             }
             else
@@ -288,16 +357,15 @@ const ChatBox = () => {
              
                 <div className = 'flex'>
                     
-                    <textarea placeholder='Type something my dear~~' value={userMessage}   className = {` overflow-auto ring-4 transition-colors text-white focus:outline-none m-5 mb-0 mt-4 border-4 rounded-2xl ${OutlineColor} ${OutlineRingColor} h-[5dvh] w-[80dvh]`}
+                    <textarea onKeyDown={HandleTexareKedown} placeholder='Type something my dear~~' value={userMessage}   className = {` overflow-auto ring-4 p-2 transition-colors text-white focus:outline-none m-5 mb-0 mt-4 border-4 rounded-2xl ${OutlineColor} ${OutlineRingColor} h-[5dvh] w-[80dvh]`}
                      onChange={(e) => setUserMessage(e.target.value)}
                      onPaste={OnPasteEvent}
                      >
-
                      </textarea>
                     <button disabled={isLoading} className='hover:bg-amber-400 transition-colors bg-blue-500 rounded-2xl h-[4dvh] w-[7dvh] m-5 ml-0 mt-6 font-bold'>LET GO</button>
                 </div>
                 </form>
-                <div className='flex'>
+                <div className='flex relative'>
                     <div>
                         <button className='hover:bg-pink-500 transition-colors shadow-2xl m-2 ml-5 mt-0 p-2 bg-pink-200 w-[10dvh] rounded-2xl' onClick={() => setIsBoxOpened(!IsBoxOpened)}>{VoiceModel}</button>    
                         {IsBoxOpened && (
@@ -341,17 +409,21 @@ const ChatBox = () => {
                                 <ul className=' rounded-2xl absolute z-10 w-[10dvh] items-center max-h-60 bg-gray-900  overflow-auto'>
                                     {
                                         ChatModeList.map((tools, i) => (
-                                            <li key = {i} className='relative p-2  bg-gray-600 text-white hover:bg-gray-800'  onClick={() => {
-                                                setIsChatModelBoxOpened(!IsChatModelBoxOpened)
-                                                setChatModel(tools.Name)
-                                            }
-                                            }>{tools.Name}</li>
+                                            <li key = {i} className='relative p-2  bg-gray-600 text-white hover:bg-gray-800'  onClick={() => {setChatModel(tools.Name); setIsChatModelBoxOpened(!IsChatModelBoxOpened)}}>{tools.Name}</li>
                                         ))
                                     }
                              </ul>
                             )
                         }
                        
+                    </div>
+                    <div className='right-3 absolute'>
+                         <button type="button" className={`${IsListening ? 'hover:bg-green-300' : 'hover:bg-red-300'} transition-colors shadow-2xl m-2 ml-5 mt-0 p-2 ${IsListening ? 'bg-green-500' : 'bg-red-500'} w-fit rounded-2xl` } 
+                         onClick={ IsListening ? stopListening : startListening}>
+                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="size-6">
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M12 18.75a6 6 0 0 0 6-6v-1.5m-6 7.5a6 6 0 0 1-6-6v-1.5m6 7.5v3.75m-3.75 0h7.5M12 15.75a3 3 0 0 1-3-3V4.5a3 3 0 1 1 6 0v8.25a3 3 0 0 1-3 3Z" />
+                            </svg>
+                         </button>
                     </div>
                 </div>
             </div>

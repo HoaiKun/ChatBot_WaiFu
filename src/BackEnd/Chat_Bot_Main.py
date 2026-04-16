@@ -8,6 +8,9 @@ import asyncio
 import inspect
 from pydantic import TypeAdapter
 from .Image_Generate import Generate_Img_Tool
+import partial_json_parser
+from partial_json_parser import Allow
+import json
 load_dotenv()
 api_key = os.getenv("OPENAI_API_KEY")
 client = AsyncOpenAI(
@@ -49,66 +52,52 @@ async def get_chat_response(chatHistory:list, model: str = "gpt-4o"):
         temperature=0.7,
         messages=[systemMessage,*chatHistory],
     ) as response:
-        is_tool_call = False
-        message_marker = '"message":'
-        animation_marker = '"animation":'
-        animation_started = False
-        emotion_marker = '"emotion":'
-        message_started = False
-        emotion = None
-        animation = None
-        full_text = ""
-        main_text_lastindex = 0
+        fulltext = ""
+        animation = {}
+        emotion = []
+        tools_call = {}
+        sent_fields = set()
+        last_sent_msg_len = 0
         async for event in response:
-                chunk =None
-                if event.type == "content.delta":
-   
-                    chunk= event.delta
-                    if chunk:
-                        full_text += chunk
-                        if not emotion:
-                             if animation_marker in full_text:
-                                  try:
-                                       part = full_text.split(animation_marker)[0]
-                                       if emotion_marker in part :
-                                            emotion = part.split(emotion_marker)[1]
-                                            if emotion.endswith(','):
-                                                 emotion = emotion[:-1].strip()
-                                            start_index = full_text.find(emotion_marker) + len(emotion_marker)
-                                            actual_content_start_id = full_text.find('"',start_index) + 1
-                                       if actual_content_start_id > 0 :
-                                            main_text_lastindex = actual_content_start_id
-                                            animation_started = True
-                                            yield f"__EMOTION__:{emotion} "
-                                            
-                                  except:
-                                    pass
-                        if animation_started and not animation:
-                             if message_marker in full_text:
-                                  part2 = full_text.split(message_marker)[0]    
-                                  try:
-                                    if animation_marker in part2:
-                                         animation = part2.split(animation_marker)[1]
-                                         if animation.endswith(','):
-                                            animation = animation[:-1].strip()
-                                            start_index = full_text.find(animation_marker) + len(animation_marker)
-                                            actual_content_start_id = full_text.find('"', start_index) + 1
-                                         if actual_content_start_id > 0:
-                                             main_text_lastindex = actual_content_start_id
-                                             message_started = True
-                                             yield f"__ANIMATION__:{animation} "
-                                             
-                                  except:
-                                       pass
-                        if message_started:
-                             main_content = full_text[main_text_lastindex:]
-                             clean_content = main_content.replace('"}', '').replace('}', '')
-                             yield clean_content
-                             main_text_lastindex = len(full_text)
+            if event.type == 'content.delta':
+                 chunk = event.delta
+                 if not chunk: continue
+                 fulltext += chunk
+                 try:
+                      obj = partial_json_parser.loads(fulltext, Allow.ALL)
 
-        print(full_text)
-        print(emotion)
-        print(animation)
+                      if not obj: continue
+                      if "emotion" in obj and "emotion" not in sent_fields:
+                           if "animation" in obj:
+                                emotion = json.dumps(obj['emotion'])
+                                print(emotion)
+                                sent_fields.add("emotion")
+                                yield f"__EMOTION__:{emotion}"
+                                
+                      if "animation" in obj and "animation" not in sent_fields:
+                           if "tools_call" in obj:
+                                animation = json.dumps(obj['animation'])
+                                print(animation)
+
+                                sent_fields.add("animation")
+                                yield f"__ANIMATION__:{animation}"
+                      if "tools_call" in obj and "tools_call" not in sent_fields:
+                           if "message" in obj:
+                                tools_call =json.dumps( obj['tools_call'])
+                                print(tools_call)
+                                yield f"__TOOLS__:{tools_call}"
+                                sent_fields.add('tools_call')
+                      if "message" in obj:
+                           current_message =  obj["message"]
+                           newcontent = current_message[last_sent_msg_len:]
+                           if newcontent:
+                            last_sent_msg_len = len(current_message)
+                            print(newcontent)
+                            yield newcontent
+                 except Exception as e:
+                      print("Fail")
+                      continue
+        
         final_completion = await response.get_final_completion()
         bot_obj = final_completion.choices[0].message.parsed
         if bot_obj:
