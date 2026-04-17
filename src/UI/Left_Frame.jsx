@@ -20,9 +20,47 @@ const ChatBox = () => {
     const [IsAttachFile, setIsAttachFile] = useState(false);
     const {SpeechText, IsListening, startListening, stopListening, setSpeechText} = ConvertSpeechToText();
     const [IsDragging, setIsDragging] = useState(false);
+    const [AttachedFile, setAttachedFile] = useState(null);
+    const [Thumbnail, setThumbnail] = useState("");
     let checkDragInBox = useRef(0);
     let SpeechQueue = useRef([]);
     let IsAudioQueueRunning = useRef(false);
+    let ChatBoxImageUrl= useRef("");
+    const [previewUrl, setPreviewUrl] = useState("");
+    const getBase64FromUrl =(file) => {
+        return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.readAsDataURL(file); // Bắt đầu đọc file dưới dạng Base64
+        reader.onload = () => resolve(reader.result); // Thành công thì trả về chuỗi
+        reader.onerror = (error) => reject(error); // Thất bại thì báo lỗi
+        });
+    }
+
+    useEffect(() => {
+    if (!AttachedFile) {
+        setPreviewUrl("");
+        return;
+    }
+
+    let url = "";
+    if (AttachedFile.type.startsWith('image/')) {
+        // Nếu là ảnh, tạo URL ảo
+        url = URL.createObjectURL(AttachedFile);
+    } else if (AttachedFile.type === 'application/pdf') {
+        url = "https://cdn-icons-png.flaticon.com/512/337/337946.png";
+    } else if (AttachedFile.type.includes('word')) {
+        url = "https://cdn-icons-png.flaticon.com/512/337/337948.png";
+    } else {
+        url = "https://cdn-icons-png.flaticon.com/512/1091/1091916.png";
+    }
+
+    setPreviewUrl(url);
+
+    // Cleanup: Xóa URL cũ khỏi RAM khi file thay đổi hoặc component đóng
+    return () => {
+        if (url.startsWith('blob:')) URL.revokeObjectURL(url);
+    };
+    }, [AttachedFile]);
     const handleFile = (e) =>{
         
         e.preventDefault();
@@ -51,7 +89,14 @@ const ChatBox = () => {
         
 
     }
-    const handleDrop = () => {
+    const handleDrop = (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        setIsDragging(false);
+        const droppedfile = e.dataTransfer.files[0];
+        if(!droppedfile) return;
+        setIsAttachFile(false);
+        setAttachedFile(droppedfile);
 
     }
     const handleDragOver = (e) =>{
@@ -132,31 +177,32 @@ const ChatBox = () => {
                 resolve(resizeBase64);
             }
             img.src = ImageBase64
-            
-            
-            
         }
-        
         )
     }
     const OnPasteEvent = async(e) => {
         const ClipboardItem = e.clipboardData.items;
         for(let i = 0; i < ClipboardItem.length; i++)
         {
-            if(ClipboardItem[i].type.indexOf("image") != -1)
+            if(ClipboardItem[i].kind === 'file')
             {
-                const blob = ClipboardItem[i].getAsFile();
-                const reader = new FileReader();
-                reader.onload = (event) => {
-                    setPasteImage(event.target.result);
-                };
-                reader.readAsDataURL(blob);
+                const file = ClipboardItem[i].getAsFile();
+                if(!file) continue;
+                const file_type = file.type;
+                if (file_type.startsWith('image/') ||
+                file_type === 'application/pdf' ||
+                file_type.includes('word')||
+                file_type.includes('officedocument'))
+                {
+                    setAttachedFile(file);
+                }
             }
         }
+        
     }
     const OnSubmitForm = async (e) => {
         e.preventDefault();
-        
+       
         if(!userMessage.trim() || isLoading)
         {
             return;
@@ -221,16 +267,31 @@ const ChatBox = () => {
             role: "user",
             content: userMessage
             }
-            if(PasteImage != "" && PasteImage)
+            if(AttachedFile)
             {
-                UserMessageObj = {
+                let resizeImageBase64OrUrl = "";
+                if(AttachedFile.type.startsWith('image/'))
+                {
+                    const base64Raw = await getBase64FromUrl(AttachedFile);
+                    resizeImageBase64OrUrl= await(ResizeImage(base64Raw));
+                    UserMessageObj = {
                     role: "user",
                     content: [
                         {type:"text", text: userMessage},
-                        {type:"image_url", image_url:{url: await ResizeImage(PasteImage) } }
-                    ]
+                        {type:"image_url", image_url:{url: resizeImageBase64OrUrl } }
+                    ],
+                    };
+                }
+                else
+                {
+                    const PdfMessage = {
+                        role: "user",
+                        content: AttachedFile.name
+                    }
+                    setChatHistory((prev) => [...prev,PdfMessage]);
                 }
             }
+           
             const AssistantMessageObj = {
                 role: "assistant",
                 content: ""
@@ -262,11 +323,14 @@ const ChatBox = () => {
             let sentence = "";
             let speechBuffer = "";
             let ChosenTools = [];
+            let file_format = new FormData();
+            file_format.append("text_file", AttachedFile);
+            setAttachedFile(null);
             if(!ImageGeneratedChosen.current)
             {
                 
-               
-                const reader = await GetChatResponse(HistoryToSend, ChatModel)
+                
+                const reader = await GetChatResponse(HistoryToSend, ChatModel, file_format);
                 const decoder = new TextDecoder();
                 setChatHistory(prev => [...prev, AssistantMessageObj]);
                 while(true){
@@ -372,27 +436,35 @@ const ChatBox = () => {
         finally{
             setIsLoading(false);
         }
-
+         
     }
         
     
 
     return(
-        <div className={` hover:bg-gray-500/60 ${IsUITrasparent ? 'hover:opacity-100 opacity-0' : 'opacity-100'} relative   transition-all  w-full h-full border-5 rounded-4xl bg-transparent transform-3d border-gray-600 p-5 hover:border-pink-300  ease-in-out`}>
-            <div className=' mt-10 space-y-6 h-[75dvh] overflow-auto'>
+        <div className={` hover:bg-gray-500/60 ${IsUITrasparent ? 'hover:opacity-100 opacity-0' : 'opacity-100'}  relative mt-5 p-2 pb-20 transition-all  w-full h-full border-5 rounded-4xl bg-transparent transform-3d border-gray-600  hover:border-pink-300  ease-in-out`}>
+            <div className=' mt-10 space-y-6 h-[80dvh] overflow-auto '>
                 {chatHistory.map((chatMessage, i) =>(
                     <ChatFrame key={i} role={chatMessage.role} message={chatMessage.content}></ChatFrame>
                 ))}
             </div>
-            <div className='bg-gray-600 rounded-2xl h-auto z-10 shadow-2xl transition-all relative' onDragOver = {handleDragOver} onDragEnter={handleDragEnter} onDragLeave={handleDragLeave}>
+             <div className='absolute z-10 bottom-2 w-[95%] left-1/2 -translate-x-1/2 '>
+                <div className='bg-gray-600 rounded-2xl h-auto z-10 shadow-2xl transition-all relative ' onDragOver = {handleDragOver} onDragEnter={handleDragEnter} onDragLeave={handleDragLeave} onDrop={handleDrop}>
                 {IsDragging && (
-                    <div className='absolute inset-0 z-50 bg-red-300/20 rounded-2xl'></div>
+                    <div className='absolute inset-0 z-50 bg-red-300/20 rounded-2xl pointer-events-none'></div>
                 )}
                 <form className='align-bottom items-center mt-5' onSubmit={OnSubmitForm}>
-                <div className={`h-auto ml-5 w-fit rounded-2xl relative`}>
+                <div className={`h-fit ml-5 w-fit rounded-2xl relative`}>
+                    {AttachedFile && (
+                        <div className='w-fit h-fit shadow-2xs relative'>
+                            <img src = {previewUrl} className='w-16 h-16 object-fill'></img>
+                            <span className = 'absolute text-[10px] bottom-0 left-0'>{AttachedFile.type.startsWith('image/') ? "" : AttachedFile.name}</span>
+                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="size-6 absolute bg-red-200 rounded-3xl  top-0 right-0 hover:bg-red-400 shadow-2xl transition-all" onClick={() => setAttachedFile(!AttachedFile)}>
+                            <path strokeLinecap="round" strokeLinejoin="round" d="m9.75 9.75 4.5 4.5m0-4.5-4.5 4.5M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
+                            </svg>
 
-                        <img src={`${PasteImage}`} className='max-h-15 w-auto'></img>
-                        <button className='absolute top-1.5 right-1 bg-red-200 h-fit w-fit rounded-2xl hover:bg-red-500 font-bold rounded-1xl text-1x1 p-0' onClick={() => setPasteImage("")}>{PasteImage == "" ? '' : 'X'}</button>
+                        </div>
+                    )}
                 </div>
                 <div className = 'flex'>
                     <textarea onKeyDown={HandleTexareKedown} placeholder='Type something my dear~~' value={userMessage}   className = {` overflow-auto ring-4 p-2 transition-colors text-white focus:outline-none m-5 mb-0 mt-4 border-4 rounded-2xl ${OutlineColor} ${OutlineRingColor} h-[5dvh] w-[80dvh]`}
@@ -476,6 +548,8 @@ const ChatBox = () => {
                     </div>
                   
                 </div>
+            </div>
+            
             </div>
             
         </div>

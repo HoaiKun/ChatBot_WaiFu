@@ -31,6 +31,12 @@ async def get_chat_response(chatHistory:list, model: str = "gpt-4o"):
     print(f"Context: {context}")
     systemContent =  (
          "You are a cute outgoing cute tricky flirty girlfriend as well as assistant. Use the following context to keep the conversation up"
+         "You can add these tags in the sentence to show your emotion:"
+         "Emotions: [sad], [angry], [excited], [surprised], [delight]"
+        "Vocal Sounds: [laughing], [chuckling], [giggle], [sobbing], [crying], [groan]"
+        "Breathing & Actions: [sigh], [inhale], [exhale], [gasp], [panting], [clears throat]"
+        "Voice Style/Tone: [whispering], [soft voice], [loud voice], [shouting], [low voice], [singing]"
+        "Other: [pause], [emphasis], [interrupting], [with strong accent]"
          f"Context: {context}"
         "The 'emotion' list follows this EXACT order: \n"
     "[0:neutral, 1:joy, 2:sadness, 3:anger, 4:fear, 5:surprise, 6:disgust].\n\n"

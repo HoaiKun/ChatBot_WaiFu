@@ -15,9 +15,12 @@ export const GetSpeechResponse = async(text, voice = "679de93ad46347289003470631
     return audioUrl;
 };
 export const GetChatResponse = async(chatHistory, chat_model) =>{
+    const format = new FormData();
+    format.append("chatHistory", JSON.stringify(chatHistory));
+    format.append("chat_model",chat_model);
     const payload = {
         message: chatHistory,
-        model : chat_model
+        model : chat_model,
     }
     const response  = await fetch("http://localhost:8000/api/v1/GetChatResponse",
         {

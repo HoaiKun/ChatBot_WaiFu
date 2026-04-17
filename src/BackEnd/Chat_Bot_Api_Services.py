@@ -31,6 +31,7 @@ class ChatMessage(BaseModel):
 class ChatPayloadFormat(BaseModel):
     message: List[ChatMessage]
     model: Optional[str] = "gpt-4o"
+
 class SpeechRequestFormat(BaseModel):
     text: str # Đổi thành 'text' cho khớp với hook Frontend của ông giáo
     voice: str = "679de93ad4634728900347063142e930"
