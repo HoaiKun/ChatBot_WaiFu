@@ -17,9 +17,47 @@ const ChatBox = () => {
     const [IsChatModelBoxOpened, setIsChatModelBoxOpened] = useState(false);
     let ImageGeneratedChosen = useRef(false);
     const [IsUITrasparent, setIsUITransparent] = useState(false);
+    const [IsAttachFile, setIsAttachFile] = useState(false);
     const {SpeechText, IsListening, startListening, stopListening, setSpeechText} = ConvertSpeechToText();
+    const [IsDragging, setIsDragging] = useState(false);
+    let checkDragInBox = useRef(0);
     let SpeechQueue = useRef([]);
     let IsAudioQueueRunning = useRef(false);
+    const handleFile = (e) =>{
+        
+        e.preventDefault();
+    }
+    const handleDragEnter = (e) => {
+
+        e.preventDefault();
+        e.stopPropagation();
+        checkDragInBox.current++;
+        if(checkDragInBox.current > 0)
+        {
+            setIsDragging(true);
+        }
+        
+        
+      
+    }
+    const handleDragLeave = (e) => {
+         e.preventDefault();
+         e.stopPropagation();
+         checkDragInBox.current--;
+        if(checkDragInBox.current==0)
+        {
+            setIsDragging(false);
+        }
+        
+
+    }
+    const handleDrop = () => {
+
+    }
+    const handleDragOver = (e) =>{
+        e.preventDefault();
+        e.stopPropagation();
+    }
     const HandleTexareKedown = (e) =>
     {
         if(e.key =='Enter' && !e.shiftKey)
@@ -340,32 +378,43 @@ const ChatBox = () => {
     
 
     return(
-        <div className={` hover:bg-gray-500/60 ${IsUITrasparent ? 'hover:opacity-100 opacity-0' : 'opacity-100'}   transition-all  w-full h-full border-5 rounded-4xl bg-transparent transform-3d border-gray-600 p-5 hover:border-pink-300  ease-in-out`}>
+        <div className={` hover:bg-gray-500/60 ${IsUITrasparent ? 'hover:opacity-100 opacity-0' : 'opacity-100'} relative   transition-all  w-full h-full border-5 rounded-4xl bg-transparent transform-3d border-gray-600 p-5 hover:border-pink-300  ease-in-out`}>
             <div className=' mt-10 space-y-6 h-[75dvh] overflow-auto'>
                 {chatHistory.map((chatMessage, i) =>(
                     <ChatFrame key={i} role={chatMessage.role} message={chatMessage.content}></ChatFrame>
                 ))}
             </div>
-            <div className='bg-gray-600 rounded-2xl h-auto '>
-                
+            <div className='bg-gray-600 rounded-2xl h-auto z-10 shadow-2xl transition-all relative' onDragOver = {handleDragOver} onDragEnter={handleDragEnter} onDragLeave={handleDragLeave}>
+                {IsDragging && (
+                    <div className='absolute inset-0 z-50 bg-red-300/20 rounded-2xl'></div>
+                )}
                 <form className='align-bottom items-center mt-5' onSubmit={OnSubmitForm}>
                 <div className={`h-auto ml-5 w-fit rounded-2xl relative`}>
 
                         <img src={`${PasteImage}`} className='max-h-15 w-auto'></img>
                         <button className='absolute top-1.5 right-1 bg-red-200 h-fit w-fit rounded-2xl hover:bg-red-500 font-bold rounded-1xl text-1x1 p-0' onClick={() => setPasteImage("")}>{PasteImage == "" ? '' : 'X'}</button>
                 </div>
-             
                 <div className = 'flex'>
-                    
                     <textarea onKeyDown={HandleTexareKedown} placeholder='Type something my dear~~' value={userMessage}   className = {` overflow-auto ring-4 p-2 transition-colors text-white focus:outline-none m-5 mb-0 mt-4 border-4 rounded-2xl ${OutlineColor} ${OutlineRingColor} h-[5dvh] w-[80dvh]`}
                      onChange={(e) => setUserMessage(e.target.value)}
                      onPaste={OnPasteEvent}
+                     onDragOver={(e) => e.preventDefault()}
                      >
                      </textarea>
                     <button disabled={isLoading} className='hover:bg-amber-400 transition-colors bg-blue-500 rounded-2xl h-[4dvh] w-[7dvh] m-5 ml-0 mt-6 font-bold'>LET GO</button>
                 </div>
                 </form>
-                <div className='flex relative'>
+                <div className='flex relative '>
+                    <div className='bg-gray-200 w-fit h-fit rounded-3xl shadow-2xl ml-5 mt-2 hover:bg-blue-300 transition-colors' onClick={()=>setIsAttachFile(!IsAttachFile)}>
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="size-6">
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v6m3-3H9m12 0a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
+                        </svg>
+                        {IsAttachFile && (
+                            <ul className=' rounded-2xl absolute z-10 w-[10dvh] items-center max-h-60 bg-gray-900  overflow-auto'>
+                                <li  className='relative p-2  bg-gray-600 text-white hover:bg-gray-800'  onClick={() => {setIsAttachFile(!IsAttachFile);}}>Attach File</li>
+                            </ul>
+                        )}
+                    </div>
                     <div>
                         <button className='hover:bg-pink-500 transition-colors shadow-2xl m-2 ml-5 mt-0 p-2 bg-pink-200 w-[10dvh] rounded-2xl' onClick={() => setIsBoxOpened(!IsBoxOpened)}>{VoiceModel}</button>    
                         {IsBoxOpened && (
@@ -425,6 +474,7 @@ const ChatBox = () => {
                             </svg>
                          </button>
                     </div>
+                  
                 </div>
             </div>
             
