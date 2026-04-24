@@ -14,13 +14,14 @@ export const GetSpeechResponse = async(text, voice = "679de93ad46347289003470631
     const audioUrl = URL.createObjectURL(clob);
     return audioUrl;
 };
-export const GetChatResponse = async(chatHistory, chat_model) =>{
+export const GetChatResponse = async(chatHistory, chat_model, PersonaID = "Elysia") =>{
     const format = new FormData();
     format.append("chatHistory", JSON.stringify(chatHistory));
     format.append("chat_model",chat_model);
     const payload = {
         message: chatHistory,
         model : chat_model,
+        PersonaID: PersonaID 
     }
     const response  = await fetch("http://localhost:8000/api/v1/GetChatResponse",
         {
@@ -47,3 +48,17 @@ export const GetImageGenerate = async(user_prompt) => {
     const result = resposne.json();
     return result;
 };
+
+export const PostDocResponse = async(document) => {
+
+    const response = await fetch("http://localhost:8000/api/v1/PostDocumentContent",
+        {
+            method:"POST",
+            body: document
+        }
+        
+    )
+    if(!response.ok) throw new Error("Cant get Doc content");
+    const result = await response.json();
+    return result;
+}

@@ -1,4 +1,4 @@
-from pydantic import BaseModel, Field, JsonValue
+from pydantic import BaseModel, Field, JsonValue, ConfigDict
 from typing import Optional, Literal, List, Dict, Any
 from datetime import datetime
 
@@ -7,13 +7,9 @@ class AnimationFormat(BaseModel):
     mode: Literal["once","loop"]
     speed: float 
 
-class ToolList(BaseModel):
-    name: Optional[Literal["GenerateImage"]] = Field (description="Name of available tools")
-    arguments: str = Field(description="arguments is the raw prompt for the Function, only return a value of string. If no tool is needed, return a null string")
 class Norma_ChatFormat(BaseModel):
     emotion: Optional[List[float]]
     animation: Optional[AnimationFormat]
-    tools_call: Optional[ToolList]
     message: str
 
 class Vector_DB_Format(BaseModel):
@@ -36,9 +32,10 @@ class Vector_DB_Format(BaseModel):
 
 
 class Image_Generation_Prompt_Format(BaseModel):
-    prompt: str
+    model_config = ConfigDict(extra='forbid')
+    prompt: str = Field(description="User prompt to create image")
     num_inference_steps: Optional[int] = 25
     guidance_scale: Optional[float] = 7.5
     width: Optional[int] = 512
     height: Optional[int] = 512
-    negative_promt: Optional[str] = "low quality, lowres, wrong anatomy, bad anatomy, deformed, disfigured, ugly"
+    negative_prompt: Optional[str] = "low quality, lowres, wrong anatomy, bad anatomy, deformed, disfigured, ugly"

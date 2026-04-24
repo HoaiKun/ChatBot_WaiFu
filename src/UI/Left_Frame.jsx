@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from  'react';
 import ChatFrame from './ChatFrame';
-import { GetChatResponse, GetImageGenerate, GetSpeechResponse } from '../hooks/CallApi';
+import { GetChatResponse, PostDocResponse, GetImageGenerate, GetSpeechResponse } from '../hooks/CallApi';
 import ConvertSpeechToText from './SpeechToText';
 
 const ChatBox = () => {
@@ -8,7 +8,8 @@ const ChatBox = () => {
     const [userMessage, setUserMessage] = useState("");
     const [IsBoxOpened, setIsBoxOpened] = useState(false);
     const [isLoading, setIsLoading] = useState(false);
-    const [VoiceModel, setVoiceModel] = useState("No Voice");
+    const [PersonaID, setPersonaID] = useState("Elysia")
+    const [IsPersonaIDOpen, setIsPersonaIDOpen] = useState(false);
     const [OutlineColor, setOutlineColor] = useState("border-white");
     const [SelectedTools, SetSelectedTools] = useState("No Tools");
     const [OutlineRingColor, setOutlineRingColor] = useState("ring-white");
@@ -26,6 +27,16 @@ const ChatBox = () => {
     let SpeechQueue = useRef([]);
     let IsAudioQueueRunning = useRef(false);
     let ChatBoxImageUrl= useRef("");
+
+
+    const PersonaSetting = [
+        {ID: "Elysia"},
+        {ID:"March th"},
+        {ID: "Rin Tohsaka"},
+        {ID: "Kafka"},
+        {ID: "Evanescia"}
+    ]
+
     const [previewUrl, setPreviewUrl] = useState("");
     const getBase64FromUrl =(file) => {
         return new Promise((resolve, reject) => {
@@ -35,7 +46,7 @@ const ChatBox = () => {
         reader.onerror = (error) => reject(error); // Thất bại thì báo lỗi
         });
     }
-
+    let IsUsetool = useRef(false);
     useEffect(() => {
     if (!AttachedFile) {
         setPreviewUrl("");
@@ -120,10 +131,15 @@ const ChatBox = () => {
 
 
     const VoiceList = [
-        {ID: 0, name: "No Voice"},
-        {ID : 1, name:"Elysia"},
-        {ID: 2, name:"None"}
+        {ID: 0, name: "No Voice", Url : ""},
+        {ID : 1, name:"Elysia", Url : "679de93ad4634728900347063142e930"},
+        {ID: 2, name:"Sarah",Url : "933563129e564b19a115bedd57b7406a"},
+        {ID: 3, name:"E-Girl", Url:"98655a12fa944e26b274c535e5e03842"},
+        {ID: 4, name:"E-maid", Url:"7bcd8078cfbc496cb50bf8d8ef137df4"}
     ];
+
+    const [VoiceModel, setVoiceModel] = useState(VoiceList[0]);
+
     let audioQueue = useRef([]);
     let IsAudioPlaying = useRef(false);
     const [IsOptionalToolsSelected, setIsOptionalToolsSelected] = useState(false);
@@ -296,6 +312,8 @@ const ChatBox = () => {
                 role: "assistant",
                 content: ""
             }
+
+
             setChatHistory((prev) => [...prev,UserMessageObj]);
 
             const HistoryToSend = [...chatHistory, UserMessageObj].map(msg =>
@@ -324,53 +342,28 @@ const ChatBox = () => {
             let speechBuffer = "";
             let ChosenTools = [];
             let file_format = new FormData();
-            file_format.append("text_file", AttachedFile);
-            setAttachedFile(null);
-            if(!ImageGeneratedChosen.current)
+            file_format.append("file", AttachedFile);
+            if(AttachedFile && file_format)
             {
+                setAttachedFile(null);
+                setOutlineRingColor("ring-green-200");   
+                await PostDocResponse(file_format);
+                setOutlineRingColor("ring-white");
+            }
+            
                 
                 
-                const reader = await GetChatResponse(HistoryToSend, ChatModel, file_format);
+                const reader = await GetChatResponse(HistoryToSend, ChatModel, PersonaID.ID);
                 const decoder = new TextDecoder();
                 setChatHistory(prev => [...prev, AssistantMessageObj]);
                 while(true){
                     const {done, value} = await reader.read();
                     if(done) break;
                     const chunk = decoder.decode(value);
-                    if(chunk.startsWith("__EMOTION__:"))
-                    {
-                        let emotion = chunk.replace("__EMOTION__:", "").trim();
-                    }
-                    else if(chunk.startsWith("__ANIMATION__:"))
-                    {
-                        let animation = chunk.replace("__ANIMATION__","").trim();
-                    }
-                    else if(chunk.startsWith("__TOOLS__:"))
-                    {
-                        const Tool_Data = chunk.replace("__TOOLS__:","").trim();
-                        try{
-                            if(Tool_Data == "null") 
-                            {
 
-                            }
-                            else
-                            {
-                                console.log("TOOL DATA THO " + Tool_Data);
-                                const toolJson = JSON.parse(Tool_Data);
-                                console.log(toolJson);
-                                ChosenTools.push(toolJson);
-                            }
-                            
-                        }
-                        catch(err)
-                        {
-                            console.error("KO lay dc tool");
-                        }
-                        
-                    }
-                    else
-                    {
-                        if(VoiceModel != "No Voice")
+                    
+                    {     
+                        if(VoiceModel.name != "No Voice")
                         {
                             sentence += chunk;
                             const end_sentence = sentence.match(sentenceEndings);
@@ -383,9 +376,9 @@ const ChatBox = () => {
                                     {
                                         speechBuffer += completedSetence;
 
-                                            if(speechBuffer.length >=30)
+                                        if(speechBuffer.length >=30)
                                         {
-                                            const speechPromise = GetSpeechResponse(speechBuffer.trim());
+                                            const speechPromise = GetSpeechResponse(speechBuffer.trim(), VoiceModel.Url);
                                             audioQueue.current.push(speechPromise);
                                             startTalking();
                                             speechBuffer = "";
@@ -412,24 +405,9 @@ const ChatBox = () => {
                     audioQueue.current.push(speechPromise);
                     startTalking();
                     speechBuffer = "";
-                }
-                for(let i = 0; i < ChosenTools.length; i++)
-                {
-                    if(ChosenTools[i].name == "GenerateImage")
-                    {
-                        setOutlineRingColor("ring-green-200");
-                        const Image_Result = await GetImageGenerate(ChosenTools[i].arguments);
-                        setChatHistory(prev => [...prev, {role:"assistant", content: ResizeImage(Image_Result.content)}]);
-                        setOutlineRingColor("ring-white");
-                    }
-                }
+                } 
             }
-            else
-            {
-                const Image_Result = await GetImageGenerate(userMessage);
-                setChatHistory(prev => [...prev, {role:"assistant", content: ResizeImage(Image_Result.content)}]);
-            }
-        }
+        
         catch (err){
             setChatHistory(prev => [...prev, {role:"assistant", content:"ERROR"}]);
         }
@@ -442,7 +420,7 @@ const ChatBox = () => {
     
 
     return(
-        <div className={` hover:bg-gray-500/60 ${IsUITrasparent ? 'hover:opacity-100 opacity-0' : 'opacity-100'}  relative mt-5 p-2 pb-20 transition-all  w-full h-full border-5 rounded-4xl bg-transparent transform-3d border-gray-600  hover:border-pink-300  ease-in-out`}>
+        <div className={` hover:bg-gray-500/60 ${IsUITrasparent ? 'hover:opacity-100 opacity-0' : 'opacity-100'}  relative mt-5 p-2 pb-30 transition-all  w-full h-full border-5 rounded-4xl bg-transparent transform-3d border-gray-600  hover:border-pink-300  ease-in-out`}>
             <div className=' mt-10 space-y-6 h-[80dvh] overflow-auto '>
                 {chatHistory.map((chatMessage, i) =>(
                     <ChatFrame key={i} role={chatMessage.role} message={chatMessage.content}></ChatFrame>
@@ -488,39 +466,33 @@ const ChatBox = () => {
                         )}
                     </div>
                     <div>
-                        <button className='hover:bg-pink-500 transition-colors shadow-2xl m-2 ml-5 mt-0 p-2 bg-pink-200 w-[10dvh] rounded-2xl' onClick={() => setIsBoxOpened(!IsBoxOpened)}>{VoiceModel}</button>    
+                        <button className='hover:bg-pink-500 transition-colors shadow-2xl m-2 ml-5 mt-0 p-2 bg-pink-200 w-[10dvh] rounded-2xl' onClick={() => setIsBoxOpened(!IsBoxOpened)}>{VoiceModel.name}</button>    
                         {IsBoxOpened && (
                             <ul className=' rounded-2xl absolute z-10 w-[10dvh] items-center max-h-60 bg-gray-900  overflow-auto'>
                                 {
                                     VoiceList.map((VoiceObj, i) => (
-                                        <li key = {i} className='relative p-2  bg-gray-600 text-white hover:bg-gray-800'  onClick={() => {setIsBoxOpened(!IsBoxOpened); setVoiceModel(VoiceObj.name); VoiceObj.name != "No Voice" ?  setOutlineColor("border-pink-200") : setOutlineColor("border-white");}}>{VoiceObj.name}</li>
+                                        <li key = {i} className='relative p-2  bg-gray-600 text-white hover:bg-gray-800'  onClick={() => {setIsBoxOpened(!IsBoxOpened); setVoiceModel(VoiceObj); VoiceObj.name != "No Voice" ?  setOutlineColor("border-pink-200") : setOutlineColor("border-white");}}>{VoiceObj.name}</li>
                                     ))
                                 }
                             </ul>
                         )} 
                     </div>
-                    <div>
-                        <button className='hover:bg-green-500 transition-colors shadow-2xl m-2 ml-5 mt-0 p-2 bg-green-200 w-[10dvh] rounded-2xl' onClick={() => setIsOptionalToolsSelected(!IsOptionalToolsSelected)}>{SelectedTools}</button>   
-                        { IsOptionalToolsSelected && (
+                     <div>
+                        <button className='hover:bg-yellow-500 transition-colors shadow-2xl m-2 ml-5 mt-0 p-2 bg-yellow-200 w-[10dvh] rounded-2xl' onClick={() => setIsPersonaIDOpen(!IsPersonaIDOpen)}>{PersonaID}</button>   
+                        {
+                            IsPersonaIDOpen &&
+                            (
                                 <ul className=' rounded-2xl absolute z-10 w-[10dvh] items-center max-h-60 bg-gray-900  overflow-auto'>
                                     {
-                                        ToolsList.map((tools, i) => (
-                                            <li key = {i} className='relative p-2  bg-gray-600 text-white hover:bg-gray-800'  onClick={() => {
-                                                setIsOptionalToolsSelected(!IsOptionalToolsSelected);
-                                                SetSelectedTools(tools.Name);
-                                                if(tools.ID != 0)   {setOutlineRingColor("ring-green-200") } else { setOutlineRingColor("ring-white")};
-                                                if(tools.ID == 1) ImageGeneratedChosen.current = true; else ImageGeneratedChosen.current = false;
-                                            }
-                                            }>{tools.Name}</li>
+                                        PersonaSetting.map((persona, i) => (
+                                            <li key = {i} className='relative p-2  bg-gray-600 text-white hover:bg-gray-800'  onClick={() => {setPersonaID(persona.ID); setIsPersonaIDOpen(!IsPersonaIDOpen)}}>{persona.ID}</li>
                                         ))
                                     }
-                                </ul>
-                        )
+                             </ul>
+                            )
                         }
-                    </div>
-
-                    <div>
-                        <button className='hover:bg-purple-500 transition-colors shadow-2xl m-2 ml-5 mt-0 p-2 bg-purple-200 w-[10dvh] rounded-2xl' onClick={() => setIsUITransparent(!IsUITrasparent)}>{IsUITrasparent ? "Transparent": " No-Transparent"}</button>   
+                   
+                        
                     </div>
                     <div>
                         <button className='hover:bg-yellow-500 transition-colors shadow-2xl m-2 ml-5 mt-0 p-2 bg-yellow-200 w-[10dvh] rounded-2xl' onClick={() => setIsChatModelBoxOpened(!IsChatModelBoxOpened)}>{ChatModel}</button>   

@@ -7,10 +7,10 @@ const ChatFrame = ({frame_id,role,message}) =>{
     let content = "";
     if(typeof(message) ==='string')
     {
-        isImage = (message.startsWith('__IMAGE__'));
+        isImage = (message.startsWith('__IMAGE__:'));
         if(isImage)
         {
-            image_url = message.replace("__IMAGE__","");
+            image_url = message.replace('__IMAGE__:',"");
         }
         else content = message;
     }
@@ -33,7 +33,7 @@ const ChatFrame = ({frame_id,role,message}) =>{
             (
                 <div>
                 <img src={image_url}
-                alt = {image_url}></img>
+                alt ="An random Image"></img>
                  <p className='whitespace-pre-line p-1 text-[1.5dvh] text-white'>{content}</p>
                 </div>
             )
