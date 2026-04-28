@@ -62,3 +62,14 @@ export const PostDocResponse = async(document) => {
     const result = await response.json();
     return result;
 }
+
+export const translateToNativeLanguage = async(text, targetLang = "en") => {
+    try{
+        const url = `https://translate.googleapis.com/translate_a/single?client=gtx&sl=auto&tl=${targetLang}&dt=t&q=${encodeURIComponent(text)}`;
+        const res = await fetch(url);
+        const data = await res.json();
+        return data[0][0][0]
+    } catch (err) {
+        return "Translation error"
+    }
+}

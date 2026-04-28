@@ -11,6 +11,8 @@ from partial_json_parser import Allow
 import json
 from datetime import datetime
 from .WeatherApi import ExtractWeatherData, AnswearWeatherRelatedTopic
+from .Get_News_Update import search_news, search_news_tools, handle_search_news
+from .PersonaSetting import GetPersonaSetting
 load_dotenv()
 api_key = os.getenv("OPENAI_API_KEY")
 client = AsyncOpenAI(
@@ -21,7 +23,7 @@ PreDecision = OpenAI(
      api_key=api_key
 )
 
-tools = [Generate_Img_Tool, AnswearFromDoc,AnswearWeatherRelatedTopic]
+tools = [Generate_Img_Tool, AnswearFromDoc,AnswearWeatherRelatedTopic, search_news_tools]
 
 
 async def get_chat_response(chatHistory:list, model: str = "gpt-4o", PersonaID = "Elysia"):
@@ -34,11 +36,11 @@ async def get_chat_response(chatHistory:list, model: str = "gpt-4o", PersonaID =
 
     task_context =  asyncio.create_task(SearchContextDB(context_string))
     context= await asyncio.gather(task_context)
-    print(f"Persona:   {Persona}")
     print(f"Context: {context} ")
     systemContent =  (
         "You is a girlfriend role-play chat bot, this is your role-play personality."
-         f"Personality: {Persona}"
+         f"Personality: {Persona['Persona']}"
+         f"Language: You should answear in this language: f{Persona['NativeLanguage']}"
          "You can add these tags in the sentence to show your emotion:"
          "Emotions: [sad], [angry], [excited], [surprised], [delight]"
         "Vocal Sounds: [laughing], [chuckling], [giggle], [sobbing], [crying], [groan]"
@@ -78,6 +80,7 @@ async def get_chat_response(chatHistory:list, model: str = "gpt-4o", PersonaID =
             final_message = final_completion.choices[0].message
             first_tool = final_message.tool_calls[0]
             args = json.loads(first_tool.function.arguments)
+            print(f"Tools {first_tool.function.name}")
             args_prompt = args['prompt']
             if(first_tool.function.name == "AnswearFromDoc"):
                 
@@ -90,7 +93,10 @@ async def get_chat_response(chatHistory:list, model: str = "gpt-4o", PersonaID =
             if(first_tool.function.name == AnswearWeatherRelatedTopic["function"]["name"]):
                 async for chunk in ExtractWeatherData(prompt=args['prompt'], location= args['location'], date = args['date']):
                     yield chunk
-                
+            if(first_tool.function.name == search_news_tools["function"]["name"]):
+                async for chunk in handle_search_news(prompt=userMessage, search_data=await search_news(args['prompt']), model=model):
+                    yield chunk
+ 
         bot_obj = final_completion.choices[0].message.parsed
         if bot_obj:
               asyncio.create_task(save_chat_response(userMes=context_string, botRep=bot_obj.message))  
@@ -121,16 +127,3 @@ async def save_chat_response(userMes:str, botRep:str):
 
 
 
-async def GetPersonaSetting(id: str) -> str:
-    Persona = "Default Persona, no trait"
-    if(id=="Elysia"):
-        Persona = 'Act as Elysia from HI3. Personality: Sweet, flirtatious, and purely optimistic. Use "Hi~", "Hehe", and romantic emojis (🌸, ✨). Never get angry; react to everything with love and playful teasing.'
-    elif id == "Marcth 7th":
-        Persona = 'Act as March 7th from HSR. Personality: High-energy, bubbly, and talkative. Frequently mentions taking photos (📸) and making memories. Use casual slang and react with "Wait, what?!" to weird situations. You are the user’s energetic bestie/girlfriend.'
-    elif id == "Rin Tohsaka":
-        Persona = 'Act as Rin Tohsaka from Fate. Personality: Intelligent, sharp-tongued, but easily flustered. Hide your affection behind logic or fake annoyance. Use phrases like "It’s not like I did this for you!" and call the user "Dummy" or "Idiot" when shy.'
-    elif id == "Kafka":
-        Persona= 'Act as Kafka from HSR. Personality: Calm, mysterious, and motherly-yet-suggestive. Call the user "Dear" or "Little Script-breaker." Use a hypnotic, velvety tone. Always stay composed and act as if you know the user’s destiny.'
-    elif id == "Evanescia":
-        Persona = 'Act as Evanescia from Honkai Star Rail, a young girl with pure heart, a wibu addicted to anime and manga, a girl with clumsy daily activity, out going, a little bit air head and straight foward'
-    return Persona

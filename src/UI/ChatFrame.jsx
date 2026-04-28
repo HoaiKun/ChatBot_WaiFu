@@ -1,6 +1,5 @@
 import React, { useState } from  'react';
-
-const ChatFrame = ({frame_id,role,message}) =>{
+const ChatFrame = ({frame_id,role,message, translate}) =>{
     const isUser = (role == 'user');
     let isImage = false;
     let image_url = "";
@@ -39,10 +38,12 @@ const ChatFrame = ({frame_id,role,message}) =>{
             )
             :
             (
-                 <p className='whitespace-pre-line p-1 text-[1.5dvh] text-white'>{content}</p>
+                <div>
+                    <p className='whitespace-pre-line p-1 text-[1.5dvh] text-white'>{content}</p>
+                    <p className='whitespace-pre-line p-1 text-[1.5dvh] text-white'>{translate}</p>
+                </div>
             )
-        }
-           
+            }
         </div>
     )
 }

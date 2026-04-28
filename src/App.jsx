@@ -14,7 +14,7 @@ function App() {
     <div className=" relative flex flex-col items-center h-screen w-full bg-pink-200">
       
       <div className = 'absolute inset-0 z-0'>
-      <WaifuFace ></WaifuFace>
+      
       </div>
       <div className = 'relative z-10 m-5 w-1/3'v>
         <ChatBox ></ChatBox>

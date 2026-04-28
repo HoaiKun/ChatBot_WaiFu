@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from  'react';
 import ChatFrame from './ChatFrame';
-import { GetChatResponse, PostDocResponse, GetImageGenerate, GetSpeechResponse } from '../hooks/CallApi';
+import { GetChatResponse, PostDocResponse, GetImageGenerate, GetSpeechResponse, translateToNativeLanguage } from '../hooks/CallApi';
 import ConvertSpeechToText from './SpeechToText';
 
 const ChatBox = () => {
@@ -23,12 +23,14 @@ const ChatBox = () => {
     const [IsDragging, setIsDragging] = useState(false);
     const [AttachedFile, setAttachedFile] = useState(null);
     const [Thumbnail, setThumbnail] = useState("");
+    const [ChatHandling, setChatHandling] = useState(false);
+    const [defaultOutlineColor, setDefaultOutlineColor] = useState('')
     let checkDragInBox = useRef(0);
     let SpeechQueue = useRef([]);
     let IsAudioQueueRunning = useRef(false);
     let ChatBoxImageUrl= useRef("");
-
-
+    const maxHistory = 20;
+    const [ringVisible, setRingVisible] = useState(false);
     const PersonaSetting = [
         {ID: "Elysia"},
         {ID:"March th"},
@@ -36,7 +38,45 @@ const ChatBox = () => {
         {ID: "Kafka"},
         {ID: "Evanescia"}
     ]
+    const audioCtxRef = useRef(null);
+    const analyserRef = useRef(null);
+    const avatarRingRef = useRef(null);
+    const IdleTimeRef = useRef(null);
+    const resetIdleTimer = () => {
+        if(IdleTimeRef.current){
+            clearTimeout(IdleTimeRef.current);
+            IdleTimeRef.current = setTimeout(() =>
+            {
+                triggerProactiveChat();
 
+            }, 60000)
+        }
+    }
+    const triggerProactiveChat = async() => {
+        if(isLoading || IsAudioPlaying.current){
+            return;
+        }
+        const proactivePrompt = "[SYSTEM TRIGGER: Say something to arouse user intererts"
+    };
+    useEffect(() => {
+        resetIdleTimer();
+        return () => clearTimeout(IdleTimeRef.current);
+    }, [chatHistory]);
+
+    useEffect(()=>
+    {
+        let interval;
+        if(isLoading){
+            interval = setInterval(() => {
+                setRingVisible(prev => !prev)
+            }, 500);
+            }
+        else
+        {
+            setRingVisible(false)
+        }
+        return () => clearInterval(interval);
+    },[isLoading]);  
     const [previewUrl, setPreviewUrl] = useState("");
     const getBase64FromUrl =(file) => {
         return new Promise((resolve, reject) => {
@@ -85,9 +125,6 @@ const ChatBox = () => {
         {
             setIsDragging(true);
         }
-        
-        
-      
     }
     const handleDragLeave = (e) => {
          e.preventDefault();
@@ -225,7 +262,7 @@ const ChatBox = () => {
         }
         setIsLoading(true);
         
-        
+        setOutlineColor("ring-green-500");
         const sentenceEndings = /[.!?\n。！？]/;
 
         
@@ -243,6 +280,15 @@ const ChatBox = () => {
             if(IsAudioPlaying.current == true) return;
             IsAudioPlaying.current= true;
            
+            if(!audioCtxRef.current)
+            {
+                const AudioContext = window.AudioContext || window.webkitAudioContext;
+                audioCtxRef.current = new AudioContext();
+                analyserRef.current =  audioCtxRef.current.createAnalyser();
+                analyserRef.current.fftSize = 256;
+                
+            }
+
             while(audioQueue.current.length > 0)
             {
                 
@@ -250,7 +296,45 @@ const ChatBox = () => {
                 const url = await PotentialURL;
                 await new Promise(resolve => {
                 const audio = new Audio(url);
+                audio.crossOrigin = "anonymous";
+                const source = audioCtxRef.current.createMediaElementSource(audio);
+                source.connect(analyserRef.current);
+                analyserRef.current.connect(audioCtxRef.current.destination)
+                
+
+                
+                const dataArray = new Uint8Array(analyserRef.current.frequencyBinCount);
+                
+                const updateSpeechVisualizer = () => {
+                    analyserRef.current.getByteFrequencyData(dataArray)
+                    if(!audio.paused && !audio.ended)
+                    {
+                        let sum = 0;
+                        for(let i = 0; i < dataArray.length; i++)
+                        {
+                            sum += dataArray[i];
+                        }
+                        const averageVolume = sum/dataArray.length;
+                        if(avatarRingRef.current)
+                        {
+                            const glowRadius = averageVolume * 0.8;
+                            const opacity = Math.min(averageVolume / 30, 1);
+                            avatarRingRef.current.style.boxShadow = `0 0 ${glowRadius}px rgba(244, 114, 182, ${opacity})`;
+                            avatarRingRef.current.style.borderColor = `rgba(244,114,182, ${opacity})`;
+                        }
+                        requestAnimationFrame(updateSpeechVisualizer);
+                    }
+                    else
+                    {
+                        if (avatarRingRef.current) {
+                            avatarRingRef.current.style.boxShadow = 'none';
+                            avatarRingRef.current.style.borderColor = ''
+                    }
+                    }
+                }
+
                 audio.play().then(() => {
+                updateSpeechVisualizer();
                 console.log("Audio đang phát...");
                 }).catch(err => {
                     console.error("Trình duyệt chặn phát hoặc lỗi file:", err);
@@ -261,7 +345,7 @@ const ChatBox = () => {
                     console.log("Phát xong 1 câu.");
                     resolve();
                 };
-
+                
             audio.onerror = () => {
                 console.error("Lỗi tải file audio.");
                 resolve();
@@ -281,7 +365,8 @@ const ChatBox = () => {
         try{
             let UserMessageObj =  {
             role: "user",
-            content: userMessage
+            content: userMessage,
+            translation:""
             }
             if(AttachedFile)
             {
@@ -310,34 +395,33 @@ const ChatBox = () => {
            
             const AssistantMessageObj = {
                 role: "assistant",
-                content: ""
+                content: "",
+                translation: ""
             }
-
+            
 
             setChatHistory((prev) => [...prev,UserMessageObj]);
 
-            const HistoryToSend = [...chatHistory, UserMessageObj].map(msg =>
-            {
-            if(typeof(msg.content) ==='string')
-            {
-                const safeContent = msg.content || "";
-            
-                if(safeContent.startsWith("__IMAGE__"))
-                {
-                    return {
-                        ...msg,
-                        content:"[System: successfully create and send a picture]"
-                    }
+            const HistoryToSend = [...chatHistory, UserMessageObj].slice(-maxHistory).map(msg => {
+            let safeContent = msg.content;
+
+            // Xử lý rút gọn nếu nội dung là chuỗi (chứa ảnh Base64 hoặc tag __IMAGE__)
+            if (typeof(safeContent) === 'string') {
+                const isBase64 = safeContent.startsWith("data:") && safeContent.includes(";base64,");
                 
-                }
-                else{
-                    return msg;
+                // Đã sửa lại vị trí dấu ngoặc và dùng toán tử || (HOẶC)
+                if (safeContent.startsWith("__IMAGE__:") || isBase64) {
+                    safeContent = "[System: successfully create and send a picture]";
                 }
             }
-                else return msg;
+
+            // ĐÁP ÁN ĐÚNG: Trả về một object HOÀN TOÀN MỚI, CHỈ CÓ role và content
+            return {
+                role: msg.role,
+                content: safeContent
+            };
+            });   
             
-            }
-            )
             let sentence = "";
             let speechBuffer = "";
             let ChosenTools = [];
@@ -353,29 +437,66 @@ const ChatBox = () => {
             
                 
                 
-                const reader = await GetChatResponse(HistoryToSend, ChatModel, PersonaID.ID);
+                const reader = await GetChatResponse(HistoryToSend, ChatModel, PersonaID);
                 const decoder = new TextDecoder();
                 setChatHistory(prev => [...prev, AssistantMessageObj]);
+
+
+                let translationArray= [];
+                let translationCount = 0;
                 while(true){
                     const {done, value} = await reader.read();
                     if(done) break;
                     const chunk = decoder.decode(value);
+                    {    
+                        
+                        
+                        setChatHistory(prev => {
+                        const newHistory = [...prev];
+                        const lastIndex = newHistory.length - 1;
+                        newHistory[lastIndex] = {
+                            ...newHistory[lastIndex],
+                            content: newHistory[lastIndex].content + chunk,
+                            translation: newHistory[lastIndex].translation
+                        };
+                        return newHistory;
+                        });
 
-                    
-                    {     
-                        if(VoiceModel.name != "No Voice")
+                        sentence += chunk;
+                        const end_sentence = sentence.match(sentenceEndings);
+                        if(end_sentence)
                         {
-                            sentence += chunk;
-                            const end_sentence = sentence.match(sentenceEndings);
-                            if(end_sentence)
+                            const sentence_end_index = end_sentence.index;
+                            const rawSengment = sentence.slice(0, sentence_end_index+1).trim();
+                            const completedSetence = rawSengment.trim();
+                            const needsNewline = rawSengment.includes('\n');
+                            sentence = sentence.slice(sentence_end_index+1);
+                            if(completedSetence.length > 0)
                             {
-                                    const sentence_end_index = end_sentence.index;
-                                    const completedSetence = sentence.slice(0, sentence_end_index+1).trim();
-                                    sentence = sentence.slice(sentence_end_index+1);
-                                    if(completedSetence.length > 0)
+                                    const CurrentIndex = translationCount++;
+                                    translateToNativeLanguage(completedSetence).then(translatedText => {
+                                        if(translatedText)
+                                        {
+                                            
+                                            translationArray[CurrentIndex] = translatedText + (needsNewline ? "\n" : "");
+                                            const orderedTranslation = translationArray.join("");
+                                            setChatHistory(prev => {
+                                            const newHistory = [...prev];
+                                            const lastIndex = newHistory.length - 1;
+                                            const oldTranslation = newHistory[lastIndex].translation;
+                                            newHistory[lastIndex] = {
+                                                ...newHistory[lastIndex],
+                                                content: newHistory[lastIndex].content,
+                                                translation: orderedTranslation
+                                            };
+                                            return newHistory;
+                                            });
+                                        }
+                                    });
+                                    
+                                    if(VoiceModel.name != "No Voice" && !chunk.startsWith("__IMAGE__:"))
                                     {
                                         speechBuffer += completedSetence;
-
                                         if(speechBuffer.length >=30)
                                         {
                                             const speechPromise = GetSpeechResponse(speechBuffer.trim(), VoiceModel.Url);
@@ -387,16 +508,6 @@ const ChatBox = () => {
                             }
                             
                         }
-                        setChatHistory(prev => {
-                        const newHistory = [...prev];
-                        const lastIndex = newHistory.length - 1;
-                        newHistory[lastIndex] = {
-                            ...newHistory[lastIndex],
-                            content: newHistory[lastIndex].content + chunk
-                        };
-                        return newHistory;
-                    });
-
                     } 
                 }
                 if(speechBuffer.length >0)
@@ -414,16 +525,14 @@ const ChatBox = () => {
         finally{
             setIsLoading(false);
         }
-         
+        setOutlineColor("ring-white");
+        setIsLoading(false);
     }
-        
-    
-
     return(
-        <div className={` hover:bg-gray-500/60 ${IsUITrasparent ? 'hover:opacity-100 opacity-0' : 'opacity-100'}  relative mt-5 p-2 pb-30 transition-all  w-full h-full border-5 rounded-4xl bg-transparent transform-3d border-gray-600  hover:border-pink-300  ease-in-out`}>
+        <div ref={avatarRingRef} className={` hover:bg-gray-500/60 ${IsUITrasparent ? 'hover:opacity-100 opacity-0' : 'opacity-100'} hover:border-gray-300 border-gray-600  relative mt-5 p-2 pb-30 transition-colors   w-full h-full border-5 rounded-4xl bg-transparent transform-3d   ease-in-out`}>
             <div className=' mt-10 space-y-6 h-[80dvh] overflow-auto '>
                 {chatHistory.map((chatMessage, i) =>(
-                    <ChatFrame key={i} role={chatMessage.role} message={chatMessage.content}></ChatFrame>
+                    <ChatFrame key={i} role={chatMessage.role} message={chatMessage.content} translate={chatMessage.translation}></ChatFrame>
                 ))}
             </div>
              <div className='absolute z-10 bottom-2 w-[95%] left-1/2 -translate-x-1/2 '>
@@ -440,12 +549,14 @@ const ChatBox = () => {
                             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="size-6 absolute bg-red-200 rounded-3xl  top-0 right-0 hover:bg-red-400 shadow-2xl transition-all" onClick={() => setAttachedFile(!AttachedFile)}>
                             <path strokeLinecap="round" strokeLinejoin="round" d="m9.75 9.75 4.5 4.5m0-4.5-4.5 4.5M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
                             </svg>
-
                         </div>
                     )}
                 </div>
                 <div className = 'flex'>
-                    <textarea onKeyDown={HandleTexareKedown} placeholder='Type something my dear~~' value={userMessage}   className = {` overflow-auto ring-4 p-2 transition-colors text-white focus:outline-none m-5 mb-0 mt-4 border-4 rounded-2xl ${OutlineColor} ${OutlineRingColor} h-[5dvh] w-[80dvh]`}
+                    <textarea onKeyDown={HandleTexareKedown} placeholder='Type something my dear~~' value={userMessage}   className = {` overflow-auto ring-4 p-2 transition-all text-white focus:outline-none m-5 mb-0 mt-4 border-4 rounded-2xl 
+                    ${OutlineColor}
+                    ${isLoading ? (ringVisible ? 'ring-green-500' : 'ring-green-500/0') : 'ring-green-500/0'}
+                     h-[5dvh] w-[80dvh]`}
                      onChange={(e) => setUserMessage(e.target.value)}
                      onPaste={OnPasteEvent}
                      onDragOver={(e) => e.preventDefault()}
@@ -478,7 +589,7 @@ const ChatBox = () => {
                         )} 
                     </div>
                      <div>
-                        <button className='hover:bg-yellow-500 transition-colors shadow-2xl m-2 ml-5 mt-0 p-2 bg-yellow-200 w-[10dvh] rounded-2xl' onClick={() => setIsPersonaIDOpen(!IsPersonaIDOpen)}>{PersonaID}</button>   
+                        <button className='hover:bg-pink-500 transition-colors shadow-2xl m-2 ml-5 mt-0 p-2 bg-pink-200 w-[10dvh] rounded-2xl' onClick={() => setIsPersonaIDOpen(!IsPersonaIDOpen)}>{PersonaID}</button>   
                         {
                             IsPersonaIDOpen &&
                             (
@@ -527,4 +638,4 @@ const ChatBox = () => {
         </div>
     )
 }
-export default ChatBox; 
+export default ChatBox;
