@@ -42,22 +42,232 @@ const ChatBox = () => {
     const analyserRef = useRef(null);
     const avatarRingRef = useRef(null);
     const IdleTimeRef = useRef(null);
+
+
+    const startTalking = async () => {
+
+        if(IsAudioPlaying.current == true) return;
+        IsAudioPlaying.current= true;
+        
+        if(!audioCtxRef.current)
+        {
+            const AudioContext = window.AudioContext || window.webkitAudioContext;
+            audioCtxRef.current = new AudioContext();
+            analyserRef.current =  audioCtxRef.current.createAnalyser();
+            analyserRef.current.fftSize = 256;
+            
+        }
+        
+        while(audioQueue.current.length > 0)
+        {
+            
+            const PotentialURL = audioQueue.current.shift();
+            const url = await PotentialURL;
+            await new Promise(resolve => {
+            const audio = new Audio(url);
+            audio.crossOrigin = "anonymous";
+            const source = audioCtxRef.current.createMediaElementSource(audio);
+            source.connect(analyserRef.current);
+            analyserRef.current.connect(audioCtxRef.current.destination)
+            
+
+            
+            const dataArray = new Uint8Array(analyserRef.current.frequencyBinCount);
+            
+            const updateSpeechVisualizer = () => {
+                analyserRef.current.getByteFrequencyData(dataArray)
+                if(!audio.paused && !audio.ended)
+                {
+                    let sum = 0;
+                    for(let i = 0; i < dataArray.length; i++)
+                    {
+                        sum += dataArray[i];
+                    }
+                    const averageVolume = sum/dataArray.length;
+                    if(avatarRingRef.current)
+                    {
+                        const glowRadius = averageVolume * 0.8;
+                        const opacity = Math.min(averageVolume / 30, 1);
+                        avatarRingRef.current.style.boxShadow = `0 0 ${glowRadius}px rgba(244, 114, 182, ${opacity})`;
+                        avatarRingRef.current.style.borderColor = `rgba(244,114,182, ${opacity})`;
+                    }
+                    requestAnimationFrame(updateSpeechVisualizer);
+                }
+                else
+                {
+                    if (avatarRingRef.current) {
+                        avatarRingRef.current.style.boxShadow = 'none';
+                        avatarRingRef.current.style.borderColor = ''
+                }
+                }
+            }
+
+            audio.play().then(() => {
+            updateSpeechVisualizer();
+            console.log("Audio đang phát...");
+            }).catch(err => {
+                console.error("Trình duyệt chặn phát hoặc lỗi file:", err);
+                resolve(); 
+            });
+
+            audio.onended = () => {
+                console.log("Phát xong 1 câu.");
+                resolve();
+            };
+            
+        audio.onerror = () => {
+            console.error("Lỗi tải file audio.");
+            resolve();
+        };
+        });
+            URL.revokeObjectURL(url);
+            if (audioQueue.current.length > 0) {
+                const pause = 200 + Math.floor(Math.random() * 150);
+                await new Promise(res => setTimeout(res, pause));
+            }
+            
+        }
+        IsAudioPlaying.current = false;
+    }
+
+
     const resetIdleTimer = () => {
+        const min = 60000;
         if(IdleTimeRef.current){
             clearTimeout(IdleTimeRef.current);
-            IdleTimeRef.current = setTimeout(() =>
-            {
-                triggerProactiveChat();
-
-            }, 60000)
         }
+        IdleTimeRef.current = setTimeout(() =>
+        {
+            triggerProactiveChat();
+
+        }, Math.floor(Math.random() * 5000) + min);    
+    };
+    const HandleChatFrame = async (chatHistory, chatModel, persona) =>{
+        let sentence = "";
+        let speechBuffer = "";
+        const sentenceEndings = /[.!?\n。！？]/;
+        const HistoryToSend = chatHistory;
+        const fChatModel = ChatModel;
+        const fPersonaID = PersonaID;
+        let AssistantMessageObj = {
+                role: "assistant",
+                content: "",
+                translation: ""
+        };
+        const reader = await GetChatResponse(HistoryToSend, fChatModel, fPersonaID);
+            const decoder = new TextDecoder();
+            setChatHistory(prev => [...prev, AssistantMessageObj]);
+            let translationArray= [];
+            let translationCount = 0;
+            while(true){
+                const {done, value} = await reader.read();
+                if(done) break;
+                const chunk = decoder.decode(value);
+                {    
+                    
+                    
+                    setChatHistory(prev => {
+                    const newHistory = [...prev];
+                    const lastIndex = newHistory.length - 1;
+                    newHistory[lastIndex] = {
+                        ...newHistory[lastIndex],
+                        content: newHistory[lastIndex].content + chunk,
+                        translation: newHistory[lastIndex].translation
+                    };
+                    return newHistory;
+                    });
+
+                    sentence += chunk;
+                    const end_sentence = sentence.match(sentenceEndings);
+                    if(end_sentence)
+                    {
+                        const sentence_end_index = end_sentence.index;
+                        const rawSengment = sentence.slice(0, sentence_end_index+1);
+                        console.log(rawSengment)
+                        const completedSetence = rawSengment;
+                        const needsNewline = rawSengment.includes('\n');
+                        sentence = sentence.slice(sentence_end_index+1);
+                        if(completedSetence.length > 0)
+                        {
+                                const CurrentIndex = translationCount++;
+                                translateToNativeLanguage(completedSetence).then(translatedText => {
+                                    if(translatedText)
+                                    {
+                                        const lastChar = rawSengment.charAt(rawSengment.length-1);
+                                        const suffix = (lastChar === '\n') ? '\n' : (lastChar===' ' ? ' ' : '');
+                                        translationArray[CurrentIndex] = translatedText +suffix;
+                                        const orderedTranslation = translationArray.join("");
+                                        setChatHistory(prev => {
+                                        const newHistory = [...prev];
+                                        const lastIndex = newHistory.length - 1;
+                                        const oldTranslation = newHistory[lastIndex].translation;
+                                        newHistory[lastIndex] = {
+                                            ...newHistory[lastIndex],
+                                            content: newHistory[lastIndex].content,
+                                            translation: orderedTranslation
+                                        };
+                                        return newHistory;
+                                        });
+                                    }
+                                });
+                                
+                                if(VoiceModel.name != "No Voice" && !chunk.startsWith("__IMAGE__:"))
+                                {
+                                    speechBuffer += completedSetence;
+                                    if(speechBuffer.length >=30)
+                                    {
+                                        const speechPromise = GetSpeechResponse(speechBuffer.trim(), VoiceModel.Url);
+                                        audioQueue.current.push(speechPromise);
+                                        startTalking();
+                                        speechBuffer = "";
+                                    }  
+                                }
+                        }
+                        
+                    }
+                } 
+            }
+            if(speechBuffer.length >0)
+            {
+                const speechPromise = GetSpeechResponse(speechBuffer);
+                audioQueue.current.push(speechPromise);
+                startTalking();
+                speechBuffer = "";
+            }
     }
+
     const triggerProactiveChat = async() => {
         if(isLoading || IsAudioPlaying.current){
             return;
         }
-        const proactivePrompt = "[SYSTEM TRIGGER: Say something to arouse user intererts"
+        const proactivePrompt = "[SYSTEM TRIGGER: Say something to arouse user intererts";
+        let UserMessageObj = {
+            role:"user",
+            content:proactivePrompt,
+            translation:""
+
+        };
+        const HistoryToSend = [...chatHistory, UserMessageObj].slice(-maxHistory).map(msg => {
+            let safeContent = msg.content;
+
+            // Xử lý rút gọn nếu nội dung là chuỗi (chứa ảnh Base64 hoặc tag __IMAGE__)
+            if (typeof(safeContent) === 'string') {
+                const isBase64 = safeContent.startsWith("data:") && safeContent.includes(";base64,");
+                
+                // Đã sửa lại vị trí dấu ngoặc và dùng toán tử || (HOẶC)
+                if (safeContent.startsWith("__IMAGE__:") || isBase64) {
+                    safeContent = "[System: successfully create and send a picture]";
+                }
+            }
+            return {
+                role: msg.role,
+                content: safeContent
+        };
+        });
+        await HandleChatFrame(HistoryToSend,ChatModel, PersonaID);
     };
+
+
     useEffect(() => {
         resetIdleTimer();
         return () => clearTimeout(IdleTimeRef.current);
@@ -205,6 +415,8 @@ const ChatBox = () => {
         },
 
     ]
+
+    
     const ResizeImage = (ImageBase64, maxWidth = 800) => {
         return new Promise((resolve) => 
         {
@@ -263,103 +475,15 @@ const ChatBox = () => {
         setIsLoading(true);
         
         setOutlineColor("ring-green-500");
-        const sentenceEndings = /[.!?\n。！？]/;
-
-        
-        
-        
-         setUserMessage("");
-         setPasteImage("");
-         if (IsListening) stopListening();
+       
+        setUserMessage("");
+        setPasteImage("");
+        if (IsListening) stopListening();
         let bottext = "";
 
 
         
-        const startTalking = async () => {
-
-            if(IsAudioPlaying.current == true) return;
-            IsAudioPlaying.current= true;
-           
-            if(!audioCtxRef.current)
-            {
-                const AudioContext = window.AudioContext || window.webkitAudioContext;
-                audioCtxRef.current = new AudioContext();
-                analyserRef.current =  audioCtxRef.current.createAnalyser();
-                analyserRef.current.fftSize = 256;
-                
-            }
-
-            while(audioQueue.current.length > 0)
-            {
-                
-                const PotentialURL = audioQueue.current.shift();
-                const url = await PotentialURL;
-                await new Promise(resolve => {
-                const audio = new Audio(url);
-                audio.crossOrigin = "anonymous";
-                const source = audioCtxRef.current.createMediaElementSource(audio);
-                source.connect(analyserRef.current);
-                analyserRef.current.connect(audioCtxRef.current.destination)
-                
-
-                
-                const dataArray = new Uint8Array(analyserRef.current.frequencyBinCount);
-                
-                const updateSpeechVisualizer = () => {
-                    analyserRef.current.getByteFrequencyData(dataArray)
-                    if(!audio.paused && !audio.ended)
-                    {
-                        let sum = 0;
-                        for(let i = 0; i < dataArray.length; i++)
-                        {
-                            sum += dataArray[i];
-                        }
-                        const averageVolume = sum/dataArray.length;
-                        if(avatarRingRef.current)
-                        {
-                            const glowRadius = averageVolume * 0.8;
-                            const opacity = Math.min(averageVolume / 30, 1);
-                            avatarRingRef.current.style.boxShadow = `0 0 ${glowRadius}px rgba(244, 114, 182, ${opacity})`;
-                            avatarRingRef.current.style.borderColor = `rgba(244,114,182, ${opacity})`;
-                        }
-                        requestAnimationFrame(updateSpeechVisualizer);
-                    }
-                    else
-                    {
-                        if (avatarRingRef.current) {
-                            avatarRingRef.current.style.boxShadow = 'none';
-                            avatarRingRef.current.style.borderColor = ''
-                    }
-                    }
-                }
-
-                audio.play().then(() => {
-                updateSpeechVisualizer();
-                console.log("Audio đang phát...");
-                }).catch(err => {
-                    console.error("Trình duyệt chặn phát hoặc lỗi file:", err);
-                    resolve(); // Lỗi thì bỏ qua để phát câu sau
-                });
-
-                audio.onended = () => {
-                    console.log("Phát xong 1 câu.");
-                    resolve();
-                };
-                
-            audio.onerror = () => {
-                console.error("Lỗi tải file audio.");
-                resolve();
-            };
-        });
-                URL.revokeObjectURL(url);
-                if (audioQueue.current.length > 0) {
-                    const pause = 200 + Math.floor(Math.random() * 150);
-                    await new Promise(res => setTimeout(res, pause));
-                }
-                
-            }
-            IsAudioPlaying.current = false;
-        }
+        
 
         
         try{
@@ -393,12 +517,12 @@ const ChatBox = () => {
                 }
             }
            
-            const AssistantMessageObj = {
+            let AssistantMessageObj = {
                 role: "assistant",
                 content: "",
                 translation: ""
             }
-            
+
 
             setChatHistory((prev) => [...prev,UserMessageObj]);
 
@@ -415,15 +539,14 @@ const ChatBox = () => {
                 }
             }
 
-            // ĐÁP ÁN ĐÚNG: Trả về một object HOÀN TOÀN MỚI, CHỈ CÓ role và content
+           
             return {
                 role: msg.role,
                 content: safeContent
             };
             });   
             
-            let sentence = "";
-            let speechBuffer = "";
+            
             let ChosenTools = [];
             let file_format = new FormData();
             file_format.append("file", AttachedFile);
@@ -435,91 +558,8 @@ const ChatBox = () => {
                 setOutlineRingColor("ring-white");
             }
             
-                
-                
-                const reader = await GetChatResponse(HistoryToSend, ChatModel, PersonaID);
-                const decoder = new TextDecoder();
-                setChatHistory(prev => [...prev, AssistantMessageObj]);
-
-
-                let translationArray= [];
-                let translationCount = 0;
-                while(true){
-                    const {done, value} = await reader.read();
-                    if(done) break;
-                    const chunk = decoder.decode(value);
-                    {    
-                        
-                        
-                        setChatHistory(prev => {
-                        const newHistory = [...prev];
-                        const lastIndex = newHistory.length - 1;
-                        newHistory[lastIndex] = {
-                            ...newHistory[lastIndex],
-                            content: newHistory[lastIndex].content + chunk,
-                            translation: newHistory[lastIndex].translation
-                        };
-                        return newHistory;
-                        });
-
-                        sentence += chunk;
-                        const end_sentence = sentence.match(sentenceEndings);
-                        if(end_sentence)
-                        {
-                            const sentence_end_index = end_sentence.index;
-                            const rawSengment = sentence.slice(0, sentence_end_index+1);
-                            console.log(rawSengment)
-                            const completedSetence = rawSengment;
-                            const needsNewline = rawSengment.includes('\n');
-                            sentence = sentence.slice(sentence_end_index+1);
-                            if(completedSetence.length > 0)
-                            {
-                                    const CurrentIndex = translationCount++;
-                                    translateToNativeLanguage(completedSetence).then(translatedText => {
-                                        if(translatedText)
-                                        {
-                                            const lastChar = rawSengment.charAt(rawSengment.length-1);
-                                            const suffix = (lastChar === '\n') ? '\n' : (lastChar===' ' ? ' ' : '');
-                                            translationArray[CurrentIndex] = translatedText +suffix;
-                                            const orderedTranslation = translationArray.join("");
-                                            setChatHistory(prev => {
-                                            const newHistory = [...prev];
-                                            const lastIndex = newHistory.length - 1;
-                                            const oldTranslation = newHistory[lastIndex].translation;
-                                            newHistory[lastIndex] = {
-                                                ...newHistory[lastIndex],
-                                                content: newHistory[lastIndex].content,
-                                                translation: orderedTranslation
-                                            };
-                                            return newHistory;
-                                            });
-                                        }
-                                    });
-                                    
-                                    if(VoiceModel.name != "No Voice" && !chunk.startsWith("__IMAGE__:"))
-                                    {
-                                        speechBuffer += completedSetence;
-                                        if(speechBuffer.length >=30)
-                                        {
-                                            const speechPromise = GetSpeechResponse(speechBuffer.trim(), VoiceModel.Url);
-                                            audioQueue.current.push(speechPromise);
-                                            startTalking();
-                                            speechBuffer = "";
-                                        }  
-                                    }
-                            }
-                            
-                        }
-                    } 
-                }
-                if(speechBuffer.length >0)
-                {
-                    const speechPromise = GetSpeechResponse(speechBuffer);
-                    audioQueue.current.push(speechPromise);
-                    startTalking();
-                    speechBuffer = "";
-                } 
-            }
+            await HandleChatFrame(HistoryToSend, ChatModel, PersonaID);
+        }
         
         catch (err){
             setChatHistory(prev => [...prev, {role:"assistant", content:"ERROR"}]);
