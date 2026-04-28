@@ -16,7 +16,7 @@ function App() {
       <div className = 'absolute inset-0 z-0'>
       
       </div>
-      <div className = 'relative z-10 m-5 w-1/3'v>
+      <div className = 'relative z-10 m-5 w-5xl'>
         <ChatBox ></ChatBox>
       </div>
       

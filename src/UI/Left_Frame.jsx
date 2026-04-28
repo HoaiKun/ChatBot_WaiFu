@@ -132,7 +132,7 @@ const ChatBox = () => {
 
 
     const resetIdleTimer = () => {
-        const min = 60000;
+        const min = 300000;
         if(IdleTimeRef.current){
             clearTimeout(IdleTimeRef.current);
         }
@@ -140,7 +140,7 @@ const ChatBox = () => {
         {
             triggerProactiveChat();
 
-        }, Math.floor(Math.random() * 5000) + min);    
+        }, Math.floor(Math.random() * 300000) + min);    
     };
     const HandleChatFrame = async (chatHistory, chatModel, persona) =>{
         let sentence = "";
@@ -195,7 +195,7 @@ const ChatBox = () => {
                                     {
                                         const lastChar = rawSengment.charAt(rawSengment.length-1);
                                         const suffix = (lastChar === '\n') ? '\n' : (lastChar===' ' ? ' ' : '');
-                                        translationArray[CurrentIndex] = translatedText +suffix;
+                                        translationArray[CurrentIndex] = translatedText+ " " +suffix;
                                         const orderedTranslation = translationArray.join("");
                                         setChatHistory(prev => {
                                         const newHistory = [...prev];

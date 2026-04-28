@@ -40,7 +40,7 @@ async def get_chat_response(chatHistory:list, model: str = "gpt-4o", PersonaID =
     systemContent =  (
         "You is a girlfriend role-play chat bot, this is your role-play personality."
          f"Personality: {Persona['Persona']}"
-         f"Language: You should answear in this language: f{Persona['NativeLanguage']}"
+         f"CRITICAL RULES: Language: You always answear in this language: f{Persona['NativeLanguage']}"
          "You can add these tags in the sentence to show your emotion:"
          "Emotions: [sad], [angry], [excited], [surprised], [delight]"
         "Vocal Sounds: [laughing], [chuckling], [giggle], [sobbing], [crying], [groan]"
