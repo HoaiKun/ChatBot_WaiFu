@@ -25,11 +25,13 @@ const ChatBox = () => {
     const [Thumbnail, setThumbnail] = useState("");
     const [ChatHandling, setChatHandling] = useState(false);
     const [defaultOutlineColor, setDefaultOutlineColor] = useState('')
+    let AutoTrigger = useRef(false);
     let checkDragInBox = useRef(0);
     let SpeechQueue = useRef([]);
     let IsAudioQueueRunning = useRef(false);
     let ChatBoxImageUrl= useRef("");
     const maxHistory = 20;
+    const [ConversationTrigger, setConversationTrigger] = useState(false);
     const [ringVisible, setRingVisible] = useState(false);
     const PersonaSetting = [
         {ID: "Elysia"},
@@ -42,9 +44,8 @@ const ChatBox = () => {
     const analyserRef = useRef(null);
     const avatarRingRef = useRef(null);
     const IdleTimeRef = useRef(null);
-
-
     const startTalking = async () => {
+    
 
         if(IsAudioPlaying.current == true) return;
         IsAudioPlaying.current= true;
@@ -129,10 +130,8 @@ const ChatBox = () => {
         }
         IsAudioPlaying.current = false;
     }
-
-
     const resetIdleTimer = () => {
-        const min = 300000;
+        const TimeGapMin = 300000;
         if(IdleTimeRef.current){
             clearTimeout(IdleTimeRef.current);
         }
@@ -140,9 +139,10 @@ const ChatBox = () => {
         {
             triggerProactiveChat();
 
-        }, Math.floor(Math.random() * 300000) + min);    
+        }, Math.floor(Math.random() * TimeGapMin) + TimeGapMin);    
     };
     const HandleChatFrame = async (chatHistory, chatModel, persona) =>{
+        setIsLoading(true);
         let sentence = "";
         let speechBuffer = "";
         const sentenceEndings = /[.!?\n。！？]/;
@@ -234,6 +234,7 @@ const ChatBox = () => {
                 startTalking();
                 speechBuffer = "";
             }
+        setIsLoading(false);
     }
 
     const triggerProactiveChat = async() => {
@@ -247,9 +248,18 @@ const ChatBox = () => {
             translation:""
 
         };
-        const HistoryToSend = [...chatHistory, UserMessageObj].slice(-maxHistory).map(msg => {
+        const HistoryToSend = [...chatHistory, UserMessageObj].filter(msg =>
+            {
+                if (typeof msg.content === 'string' && msg.content.startsWith('/'))
+                {
+                    return false;
+                    
+                }
+                return !msg.content.startsWith('/');
+            }
+            
+            ).slice(-maxHistory).map(msg => {
             let safeContent = msg.content;
-
             // Xử lý rút gọn nếu nội dung là chuỗi (chứa ảnh Base64 hoặc tag __IMAGE__)
             if (typeof(safeContent) === 'string') {
                 const isBase64 = safeContent.startsWith("data:") && safeContent.includes(";base64,");
@@ -262,16 +272,20 @@ const ChatBox = () => {
             return {
                 role: msg.role,
                 content: safeContent
-        };
-        });
+            };
+            });
         await HandleChatFrame(HistoryToSend,ChatModel, PersonaID);
     };
 
 
     useEffect(() => {
-        resetIdleTimer();
+        if(ConversationTrigger)
+        {
+            resetIdleTimer();
         return () => clearTimeout(IdleTimeRef.current);
-    }, [chatHistory]);
+        }
+        
+    }, [chatHistory, ConversationTrigger]);
 
     useEffect(()=>
     {
@@ -417,6 +431,28 @@ const ChatBox = () => {
     ]
 
     
+    const HandleCommand = (command) => {
+        if(command.startsWith('/'))
+        {
+            const CommandList = command.split(/\s+/);
+            setChatHistory(prev => [...prev, {role:"user", content:command}]);
+            for(let i = 0; i < CommandList.length; i++)
+            {
+                const CommandText = CommandList[i];
+                if(CommandText == '/WaifuOn')
+                {
+                    setConversationTrigger(true);
+                }
+                if(CommandText == '/WaifuOff')
+                {
+                    setConversationTrigger(false);
+                }
+            }
+            return true;
+        }
+        return false;
+    }
+    
     const ResizeImage = (ImageBase64, maxWidth = 800) => {
         return new Promise((resolve) => 
         {
@@ -472,21 +508,23 @@ const ChatBox = () => {
         {
             return;
         }
-        setIsLoading(true);
         
-        setOutlineColor("ring-green-500");
+        
+       
+        
+       
        
         setUserMessage("");
         setPasteImage("");
+        if(HandleCommand(userMessage)) return;
         if (IsListening) stopListening();
         let bottext = "";
 
-
-        
-        
-
         
         try{
+            
+           
+          
             let UserMessageObj =  {
             role: "user",
             content: userMessage,
@@ -526,9 +564,18 @@ const ChatBox = () => {
 
             setChatHistory((prev) => [...prev,UserMessageObj]);
 
-            const HistoryToSend = [...chatHistory, UserMessageObj].slice(-maxHistory).map(msg => {
+            const HistoryToSend = [...chatHistory, UserMessageObj].filter(msg =>
+            {
+                if (typeof msg.content === 'string' && msg.content.startsWith('/'))
+                {
+                    return false;
+                    
+                }
+                return !msg.content.startsWith('/');
+            }
+            
+            ).slice(-maxHistory).map(msg => {
             let safeContent = msg.content;
-
             // Xử lý rút gọn nếu nội dung là chuỗi (chứa ảnh Base64 hoặc tag __IMAGE__)
             if (typeof(safeContent) === 'string') {
                 const isBase64 = safeContent.startsWith("data:") && safeContent.includes(";base64,");
@@ -538,8 +585,6 @@ const ChatBox = () => {
                     safeContent = "[System: successfully create and send a picture]";
                 }
             }
-
-           
             return {
                 role: msg.role,
                 content: safeContent
@@ -568,7 +613,7 @@ const ChatBox = () => {
             setIsLoading(false);
         }
         setOutlineColor("ring-white");
-        setIsLoading(false);
+        
     }
     return(
         <div ref={avatarRingRef} className={` hover:bg-gray-500/60 ${IsUITrasparent ? 'hover:opacity-100 opacity-0' : 'opacity-100'} hover:border-gray-300 border-gray-600  relative mt-5 p-2 pb-30 transition-colors   w-full h-full border-5 rounded-4xl bg-transparent transform-3d   ease-in-out`}>
@@ -671,7 +716,7 @@ const ChatBox = () => {
                             </svg>
                          </button>
                     </div>
-                  
+                    
                 </div>
             </div>
             
