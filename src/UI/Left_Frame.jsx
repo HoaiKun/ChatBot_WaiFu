@@ -467,8 +467,9 @@ const ChatBox = () => {
                         if(end_sentence)
                         {
                             const sentence_end_index = end_sentence.index;
-                            const rawSengment = sentence.slice(0, sentence_end_index+1).trim();
-                            const completedSetence = rawSengment.trim();
+                            const rawSengment = sentence.slice(0, sentence_end_index+1);
+                            console.log(rawSengment)
+                            const completedSetence = rawSengment;
                             const needsNewline = rawSengment.includes('\n');
                             sentence = sentence.slice(sentence_end_index+1);
                             if(completedSetence.length > 0)
@@ -477,8 +478,9 @@ const ChatBox = () => {
                                     translateToNativeLanguage(completedSetence).then(translatedText => {
                                         if(translatedText)
                                         {
-                                            
-                                            translationArray[CurrentIndex] = translatedText + (needsNewline ? "\n" : "");
+                                            const lastChar = rawSengment.charAt(rawSengment.length-1);
+                                            const suffix = (lastChar === '\n') ? '\n' : (lastChar===' ' ? ' ' : '');
+                                            translationArray[CurrentIndex] = translatedText +suffix;
                                             const orderedTranslation = translationArray.join("");
                                             setChatHistory(prev => {
                                             const newHistory = [...prev];

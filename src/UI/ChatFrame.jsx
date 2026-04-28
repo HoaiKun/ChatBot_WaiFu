@@ -39,8 +39,8 @@ const ChatFrame = ({frame_id,role,message, translate}) =>{
             :
             (
                 <div>
-                    <p className='whitespace-pre-line p-1 text-[1.5dvh] text-white'>{content}</p>
-                    <p className='whitespace-pre-line p-1 text-[1.5dvh] text-white'>{translate}</p>
+                    <p className='whitespace-pre-wrap  p-1 text-[1.5dvh] text-white'>{content}</p>
+                    <p className='whitespace-pre-wrap p-1 text-[1.5dvh] text-white'>{translate}</p>
                 </div>
             )
             }
