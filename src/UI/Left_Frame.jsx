@@ -1,8 +1,7 @@
 import React, { useState, useRef, useEffect } from  'react';
 import ChatFrame from './ChatFrame';
-import { GetChatResponse, PostDocResponse, GetImageGenerate, GetSpeechResponse, translateToNativeLanguage } from '../hooks/CallApi';
-import ConvertSpeechToText from './SpeechToText';
-
+import { GetChatResponse, PostDocResponse, GetImageGenerate, GetSpeechResponse, translateToNativeLanguage, GetSystemSetting } from '../hooks/CallApi';
+import { RecordSpeech } from './SpeechRecording';
 const ChatBox = () => {
     const [chatHistory, setChatHistory] = useState([]);
     const [userMessage, setUserMessage] = useState("");
@@ -19,12 +18,14 @@ const ChatBox = () => {
     let ImageGeneratedChosen = useRef(false);
     const [IsUITrasparent, setIsUITransparent] = useState(false);
     const [IsAttachFile, setIsAttachFile] = useState(false);
-    const {SpeechText, IsListening, startListening, stopListening, setSpeechText} = ConvertSpeechToText();
+    const {SpeechText, IsListening, setIsListening, startListening, stopListening} = RecordSpeech('en');
     const [IsDragging, setIsDragging] = useState(false);
     const [AttachedFile, setAttachedFile] = useState(null);
     const [Thumbnail, setThumbnail] = useState("");
     const [ChatHandling, setChatHandling] = useState(false);
     const [defaultOutlineColor, setDefaultOutlineColor] = useState('')
+    const [SystemSetting, setSystemSetting] = useState(null);
+    const [previewUrl, setPreviewUrl] = useState("");
     let AutoTrigger = useRef(false);
     let checkDragInBox = useRef(0);
     let SpeechQueue = useRef([]);
@@ -33,17 +34,102 @@ const ChatBox = () => {
     const maxHistory = 20;
     const [ConversationTrigger, setConversationTrigger] = useState(false);
     const [ringVisible, setRingVisible] = useState(false);
-    const PersonaSetting = [
-        {ID: "Elysia"},
-        {ID:"March th"},
-        {ID: "Rin Tohsaka"},
-        {ID: "Kafka"},
-        {ID: "Evanescia"}
-    ]
     const audioCtxRef = useRef(null);
     const analyserRef = useRef(null);
     const avatarRingRef = useRef(null);
     const IdleTimeRef = useRef(null);
+    const [VoiceModel, setVoiceModel] = useState(null);
+    let audioQueue = useRef([]);
+    let IsAudioPlaying = useRef(false);
+    let IsUsetool = useRef(false);
+    const [IsOptionalToolsSelected, setIsOptionalToolsSelected] = useState(false);
+    
+    useEffect(() => {
+        const initSetting = async() => {
+            const data = await GetSystemSetting();
+            if(data){
+                setSystemSetting(data);
+                setVoiceModel(data.VoiceList[0]);
+            }
+        };
+        initSetting();
+    }, []);
+    let ChatModelList = SystemSetting?.ChatModelList;
+    let PersonaSetting = SystemSetting?.PersonaSetting;
+
+    useEffect(() => {
+
+        if(IsListening)
+        {
+            startListening();
+            
+        }
+        else
+        {
+            stopListening();
+        }
+    }, [IsListening]);
+
+    useEffect(() => {
+        setUserMessage(SpeechText);
+    }, [SpeechText]);
+
+    useEffect(() => {
+        if(ConversationTrigger)
+        {
+            resetIdleTimer();
+        return () => clearTimeout(IdleTimeRef.current);
+        }
+        
+    }, [chatHistory, ConversationTrigger]);
+
+    useEffect(() => {
+    if (!AttachedFile) {
+        setPreviewUrl("");
+        return;
+    };
+
+    
+    let url = "";
+    if (AttachedFile.type.startsWith('image/')) {
+        // Nếu là ảnh, tạo URL ảo
+        url = URL.createObjectURL(AttachedFile);
+    } else if (AttachedFile.type === 'application/pdf') {
+        url = "https://cdn-icons-png.flaticon.com/512/337/337946.png";
+    } else if (AttachedFile.type.includes('word')) {
+        url = "https://cdn-icons-png.flaticon.com/512/337/337948.png";
+    } else {
+        url = "https://cdn-icons-png.flaticon.com/512/1091/1091916.png";
+    }
+
+    setPreviewUrl(url);
+ // Cleanup: Xóa URL cũ khỏi RAM khi file thay đổi hoặc component đóng
+    return () => {
+        if (url.startsWith('blob:')) URL.revokeObjectURL(url);
+    };
+    }, [AttachedFile]);
+    useEffect(()=>
+    {
+        let interval;
+        if(isLoading){
+            interval = setInterval(() => {
+                setRingVisible(prev => !prev)
+            }, 500);
+            }
+        else
+        {
+            setRingVisible(false)
+        }
+        return () => clearInterval(interval);
+    },[isLoading]);  
+
+    if(!SystemSetting)
+        {
+            return <div>
+                <h1>Loading...</h1>
+            </div>
+        };
+
     const startTalking = async () => {
     
 
@@ -211,7 +297,7 @@ const ChatBox = () => {
                                     }
                                 });
                                 
-                                if(VoiceModel.name != "No Voice" && !chunk.startsWith("__IMAGE__:"))
+                                if(VoiceModel.Name != "No Voice" && !chunk.startsWith("__IMAGE__:"))
                                 {
                                     speechBuffer += completedSetence;
                                     if(speechBuffer.length >=30)
@@ -278,30 +364,8 @@ const ChatBox = () => {
     };
 
 
-    useEffect(() => {
-        if(ConversationTrigger)
-        {
-            resetIdleTimer();
-        return () => clearTimeout(IdleTimeRef.current);
-        }
-        
-    }, [chatHistory, ConversationTrigger]);
-
-    useEffect(()=>
-    {
-        let interval;
-        if(isLoading){
-            interval = setInterval(() => {
-                setRingVisible(prev => !prev)
-            }, 500);
-            }
-        else
-        {
-            setRingVisible(false)
-        }
-        return () => clearInterval(interval);
-    },[isLoading]);  
-    const [previewUrl, setPreviewUrl] = useState("");
+    
+   
     const getBase64FromUrl =(file) => {
         return new Promise((resolve, reject) => {
         const reader = new FileReader();
@@ -310,32 +374,11 @@ const ChatBox = () => {
         reader.onerror = (error) => reject(error); // Thất bại thì báo lỗi
         });
     }
-    let IsUsetool = useRef(false);
-    useEffect(() => {
-    if (!AttachedFile) {
-        setPreviewUrl("");
-        return;
-    }
+    
+    
 
-    let url = "";
-    if (AttachedFile.type.startsWith('image/')) {
-        // Nếu là ảnh, tạo URL ảo
-        url = URL.createObjectURL(AttachedFile);
-    } else if (AttachedFile.type === 'application/pdf') {
-        url = "https://cdn-icons-png.flaticon.com/512/337/337946.png";
-    } else if (AttachedFile.type.includes('word')) {
-        url = "https://cdn-icons-png.flaticon.com/512/337/337948.png";
-    } else {
-        url = "https://cdn-icons-png.flaticon.com/512/1091/1091916.png";
-    }
 
-    setPreviewUrl(url);
-
-    // Cleanup: Xóa URL cũ khỏi RAM khi file thay đổi hoặc component đóng
-    return () => {
-        if (url.startsWith('blob:')) URL.revokeObjectURL(url);
-    };
-    }, [AttachedFile]);
+   
     const handleFile = (e) =>{
         
         e.preventDefault();
@@ -384,26 +427,15 @@ const ChatBox = () => {
         }
     };
 
-    useEffect(() => {
-
-        setUserMessage(SpeechText);
-        
-    }, [SpeechText, IsListening]);
+    
 
 
-    const VoiceList = [
-        {ID: 0, name: "No Voice", Url : ""},
-        {ID : 1, name:"Elysia", Url : "679de93ad4634728900347063142e930"},
-        {ID: 2, name:"Sarah",Url : "933563129e564b19a115bedd57b7406a"},
-        {ID: 3, name:"E-Girl", Url:"98655a12fa944e26b274c535e5e03842"},
-        {ID: 4, name:"E-maid", Url:"7bcd8078cfbc496cb50bf8d8ef137df4"}
-    ];
+    let VoiceList = SystemSetting?.VoiceList;
+    
+   
 
-    const [VoiceModel, setVoiceModel] = useState(VoiceList[0]);
-
-    let audioQueue = useRef([]);
-    let IsAudioPlaying = useRef(false);
-    const [IsOptionalToolsSelected, setIsOptionalToolsSelected] = useState(false);
+    
+    
     let ToolsList = [
             {
                 ID:0, Name: "No Tools"
@@ -417,19 +449,7 @@ const ChatBox = () => {
         ];
     let voice_url = "";
 
-    let ChatModeList = [
-        {
-            ID:0, Name: "gpt-4o"
-        },
-        {
-            ID:1, Name: "gpt-4o-mini"
-        },
-        {
-            ID:2, Name: "gpt-5.4-mini"
-        },
-
-    ]
-
+    
     
     const HandleCommand = (command) => {
         if(command.startsWith('/'))
@@ -509,11 +529,6 @@ const ChatBox = () => {
             return;
         }
         
-        
-       
-        
-       
-       
         setUserMessage("");
         setPasteImage("");
         if(HandleCommand(userMessage)) return;
@@ -614,6 +629,7 @@ const ChatBox = () => {
         }
         setOutlineColor("ring-white");
         
+        
     }
     return(
         <div ref={avatarRingRef} className={` hover:bg-gray-500/60 ${IsUITrasparent ? 'hover:opacity-100 opacity-0' : 'opacity-100'} hover:border-gray-300 border-gray-600  relative mt-5 p-2 pb-30 transition-colors   w-full h-full border-5 rounded-4xl bg-transparent transform-3d   ease-in-out`}>
@@ -664,12 +680,12 @@ const ChatBox = () => {
                         )}
                     </div>
                     <div>
-                        <button className='hover:bg-pink-500 transition-colors shadow-2xl m-2 ml-5 mt-0 p-2 bg-pink-200 w-[10dvh] rounded-2xl' onClick={() => setIsBoxOpened(!IsBoxOpened)}>{VoiceModel.name}</button>    
+                        <button className='hover:bg-pink-500 transition-colors shadow-2xl m-2 ml-5 mt-0 p-2 bg-pink-200 w-[10dvh] rounded-2xl' onClick={() => setIsBoxOpened(!IsBoxOpened)}>{VoiceModel?.Name}</button>    
                         {IsBoxOpened && (
                             <ul className=' rounded-2xl absolute z-10 w-[10dvh] items-center max-h-60 bg-gray-900  overflow-auto'>
                                 {
                                     VoiceList.map((VoiceObj, i) => (
-                                        <li key = {i} className='relative p-2  bg-gray-600 text-white hover:bg-gray-800'  onClick={() => {setIsBoxOpened(!IsBoxOpened); setVoiceModel(VoiceObj); VoiceObj.name != "No Voice" ?  setOutlineColor("border-pink-200") : setOutlineColor("border-white");}}>{VoiceObj.name}</li>
+                                        <li key = {i} className='relative p-2  bg-gray-600 text-white hover:bg-gray-800'  onClick={() => {setIsBoxOpened(!IsBoxOpened); setVoiceModel(VoiceObj); VoiceObj.Name != "No Voice" ?  setOutlineColor("border-pink-200") : setOutlineColor("border-white");}}>{VoiceObj.Name}</li>
                                     ))
                                 }
                             </ul>
@@ -683,7 +699,7 @@ const ChatBox = () => {
                                 <ul className=' rounded-2xl absolute z-10 w-[10dvh] items-center max-h-60 bg-gray-900  overflow-auto'>
                                     {
                                         PersonaSetting.map((persona, i) => (
-                                            <li key = {i} className='relative p-2  bg-gray-600 text-white hover:bg-gray-800'  onClick={() => {setPersonaID(persona.ID); setIsPersonaIDOpen(!IsPersonaIDOpen)}}>{persona.ID}</li>
+                                            <li key = {i} className='relative p-2  bg-gray-600 text-white hover:bg-gray-800'  onClick={() => {setPersonaID(persona.Id); setIsPersonaIDOpen(!IsPersonaIDOpen)}}>{persona.Id}</li>
                                         ))
                                     }
                              </ul>
@@ -699,7 +715,7 @@ const ChatBox = () => {
                             (
                                 <ul className=' rounded-2xl absolute z-10 w-[10dvh] items-center max-h-60 bg-gray-900  overflow-auto'>
                                     {
-                                        ChatModeList.map((tools, i) => (
+                                        ChatModelList.map((tools, i) => (
                                             <li key = {i} className='relative p-2  bg-gray-600 text-white hover:bg-gray-800'  onClick={() => {setChatModel(tools.Name); setIsChatModelBoxOpened(!IsChatModelBoxOpened)}}>{tools.Name}</li>
                                         ))
                                     }
@@ -710,7 +726,7 @@ const ChatBox = () => {
                     </div>
                     <div className='right-3 absolute'>
                          <button type="button" className={`${IsListening ? 'hover:bg-green-300' : 'hover:bg-red-300'} transition-colors shadow-2xl m-2 ml-5 mt-0 p-2 ${IsListening ? 'bg-green-500' : 'bg-red-500'} w-fit rounded-2xl` } 
-                         onClick={ IsListening ? stopListening : startListening}>
+                         onClick={() => setIsListening(!IsListening)}>
                             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="size-6">
                             <path strokeLinecap="round" strokeLinejoin="round" d="M12 18.75a6 6 0 0 0 6-6v-1.5m-6 7.5a6 6 0 0 1-6-6v-1.5m6 7.5v3.75m-3.75 0h7.5M12 15.75a3 3 0 0 1-3-3V4.5a3 3 0 1 1 6 0v8.25a3 3 0 0 1-3 3Z" />
                             </svg>

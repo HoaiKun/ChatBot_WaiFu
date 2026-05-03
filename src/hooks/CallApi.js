@@ -1,3 +1,5 @@
+import { pass } from "three/src/nodes/display/PassNode.js";
+
 export const GetSpeechResponse = async(text, voice = "679de93ad4634728900347063142e930") => {
     const payload = {
             text : text,
@@ -71,5 +73,41 @@ export const translateToNativeLanguage = async(text, targetLang = "en") => {
         return data[0][0][0]
     } catch (err) {
         return "Translation error"
+    }
+}
+
+export const GetSystemSetting = async() => {
+    try
+    {
+        const response  = await fetch("http://localhost:8000/api/v1/GetSystemSetting",
+            {
+                method:"GET",
+                headers:{"Content-Type":"application/json"},
+            }
+        );
+        const data = await response.json();
+        return data;
+    }
+    catch (err)
+    {
+        return null;
+    }
+}
+
+export const PostSpeechToText = async(file) => {
+    try{
+        const response = await fetch("http://localhost:8000/api/v1/GetSpeechToText",{
+            method:"POST",
+            body: file
+        });
+
+        if(!response.ok) throw new Error("Error from backend");
+        const reader = response.body.getReader();
+        return reader;
+    }
+    catch (err)
+    {
+        console.log("Error get text from speech");
+        return null;
     }
 }
