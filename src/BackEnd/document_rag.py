@@ -7,7 +7,7 @@ from pydantic import TypeAdapter
 from dotenv import load_dotenv
 import os
 load_dotenv()
-async def GetExternalDataFromDocument(prompt: str) -> str:
+async def GetExternalDataFromDocument(prompt: str, session:str) -> str:
     """
         Base on user prompt, find out what user want, decide what the proper query to search in Chromadb and use the data that get from Chromadb to answear user Question
     """
@@ -16,7 +16,7 @@ async def GetExternalDataFromDocument(prompt: str) -> str:
     )
     ClientGo = client.chat.completions.create(
         model="gpt-4o-mini",
-        temperature=0.2,
+        temperature=0.5,
         messages=[
             {
                 "role":"system",
@@ -29,16 +29,16 @@ async def GetExternalDataFromDocument(prompt: str) -> str:
         ]
     )
     Query = ClientGo.choices[0].message.content
-    ExternalData =  await GetPDFDetail(Query)
+    ExternalData =  await GetPDFDetail(Query, session_id = session)
     return ExternalData
 
-async def AnswearDocument(prompt: str, general_context:str, model: str) -> str:
+async def AnswearDocument(prompt: str, general_context:str, model: str, session:str) -> str:
     """
         Use when user require extract information from doc
         Your mission is from user prompt, decide what data should be query from document by converting prompt into general_context, and answear user question
     """
     Client = AsyncOpenAI(api_key=os.getenv("OPENAI_API_KEY")) 
-    general_data = await GetExternalDataFromDocument(prompt=general_context)
+    general_data = await GetExternalDataFromDocument(prompt=general_context, session=session)
     async with Client.beta.chat.completions.stream(
         model="gpt-4o",
         temperature=0.6,

@@ -92,7 +92,7 @@ async def post_chat_respose(payload: ChatPayloadFormat, background_task:Backgrou
                                metadata=payload.metadata)
     async def stream_and_collect():
         full_response = ""
-        async for chunks in  get_chat_response(chatHistory=chatHistory, model=target_model, PersonaID=PersonaID):
+        async for chunks in  get_chat_response(session=payload.session,chatHistory=chatHistory, model=target_model, PersonaID=PersonaID):
             full_response+=chunks
             yield chunks
 
@@ -119,8 +119,11 @@ async def post_chat_speech(payload: SpeechRequestFormat):
 class ImagePromptFormat(BaseModel):
     prompt: str
 
+
+    
+
 @router.post("/PostDocumentContent")
-async def PostDocumentContent(file: UploadFile = File(...)):
+async def PostDocumentContent(file: UploadFile = File(...),session_id: str = Form(...)):
     filename = file.filename
     extension = os.path.splitext(filename)[1].lower()
     tmp_path = None
@@ -130,7 +133,7 @@ async def PostDocumentContent(file: UploadFile = File(...)):
         shutil.copyfileobj(file.file, tmp)
         tmp_path = tmp.name
     try:
-        await AddFIleToMemory(filepath=tmp_path, extension=extension)
+        await AddFIleToMemory(filepath=tmp_path, extension=extension, session_id=session_id)
         return {"role": "assistant", "content":"Loaded file"}
     except:
         return {"role":"assistant", "content": f"__MESSAGE__:Working on {file.filename}"}

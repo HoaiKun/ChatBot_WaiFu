@@ -94,15 +94,37 @@ async def AddFIleToMemory(filepath:str, extension:str, session_id:str):
         raise ValueError(f"Định dạng file {extension} không được hỗ trợ.")
     
     docs =  loader.load()
+    print(f"save doc with session id: {session_id}")
     for minidoc in docs:
         minidoc.metadata["session_id"] = session_id
     DocRetriever.add_documents(docs, ids=None)
     print("PDF Save")
 
-async def GetPDFDetail(query:str):
-    detailed_docs = DocRetriever.invoke(query)
-    if(not detailed_docs):
-        return "No PDF Content"
+async def GetPDFDetail(query:str, session_id:str):
+    sub_docs = DocRetriever.vectorstore.similarity_search(
+        query=query,
+        k=10,
+        filter={"session_id" : session_id}
+    )
+    if not sub_docs:
+        return "No content"
     
-    Doc_content = "\n---\n".join(d.page_content for d in detailed_docs)
-    return Doc_content
+    parent_ids = list(set(
+        doc.metadata[DocRetriever.id_key] 
+        for doc in sub_docs 
+        if DocRetriever.id_key in doc.metadata
+    ))
+
+    if not parent_ids:
+        return "No linked Parent documents found."
+    
+    detailed_docs = DocRetriever.docstore.mget(parent_ids)
+
+    # 4. Gom nội dung lại thành chuỗi để trả về cho AI
+    # chi lấy những doc không bị None (phòng trường hợp lỗi đồng bộ giữa vectorstore và docstore)
+    context_list = [doc.page_content for doc in detailed_docs if doc is not None]
+    
+    if not context_list:
+        return "No PDF Content."
+
+    return "\n---\n".join(context_list)

@@ -615,7 +615,7 @@ const ChatBox = () => {
                     
                     let file_format = new FormData();
                     file_format.append("file", AttachedFile);
-                    
+                    file_format.append('session_id', CurrentChatSession.current.session_id);
                     if(file_format)
                     {
                         console.log(file_format);

@@ -26,7 +26,8 @@ PreDecision = OpenAI(
 tools = [Generate_Img_Tool, AnswearFromDoc,AnswearWeatherRelatedTopic, search_news_tools]
 
 
-async def get_chat_response(chatHistory:list, model: str = "gpt-4o", PersonaID = "Elysia"):
+async def get_chat_response(session:str,chatHistory:list, model: str = "gpt-4o", PersonaID = "Elysia",):
+    print(f"Chat current session: {session}")
     userMessage = chatHistory[-1].content
     print(userMessage)
     context_string = userMessage
@@ -84,7 +85,7 @@ async def get_chat_response(chatHistory:list, model: str = "gpt-4o", PersonaID =
             args_prompt = args['prompt']
             if(first_tool.function.name == "AnswearFromDoc"):
                 
-                async for chunk in AnswearDocument(prompt=userMessage, general_context= args_prompt, model=model):
+                async for chunk in AnswearDocument(prompt=userMessage, general_context= args_prompt, model=model, session = session):
                     yield chunk
 
             if(first_tool.function.name == Generate_Img_Tool["function"]["name"]):
