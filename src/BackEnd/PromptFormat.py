@@ -26,6 +26,7 @@ class Vector_DB_Format(BaseModel):
     importance: Optional[int] = None
     category: Optional[list[str]] = []
     keywords: Optional[list[str]] = []
+    chat_session : Optional[str] = 'defaultsesion'
     timestamp: datetime | None = None
     
 

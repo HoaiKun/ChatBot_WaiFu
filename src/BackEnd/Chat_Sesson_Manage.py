@@ -54,7 +54,7 @@ async def CreateNewChatSession(user_id: str, topic:str = "New Chat"):
     client = OpenAI(api_key=os.getenv('OPENAI_API_KEY'))
     get_topic = client.chat.completions.create(
         model='gpt-4o',
-        temperature=0.2,
+        temperature=0.5,
         messages=[
             {
                 "role":"user",

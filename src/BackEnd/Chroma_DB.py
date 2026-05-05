@@ -81,7 +81,7 @@ DocRetriever = ParentDocumentRetriever(
     parent_splitter=parent_splitter
 )
 
-async def AddFIleToMemory(filepath:str, extension = "pdf"):
+async def AddFIleToMemory(filepath:str, extension:str, session_id:str):
     loader = None
     if extension == ".pdf":
         loader = PyPDFLoader(filepath)
@@ -94,6 +94,8 @@ async def AddFIleToMemory(filepath:str, extension = "pdf"):
         raise ValueError(f"Định dạng file {extension} không được hỗ trợ.")
     
     docs =  loader.load()
+    for minidoc in docs:
+        minidoc.metadata["session_id"] = session_id
     DocRetriever.add_documents(docs, ids=None)
     print("PDF Save")
 

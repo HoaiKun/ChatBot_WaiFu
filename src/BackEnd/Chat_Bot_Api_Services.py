@@ -124,7 +124,7 @@ async def PostDocumentContent(file: UploadFile = File(...)):
     filename = file.filename
     extension = os.path.splitext(filename)[1].lower()
     tmp_path = None
-    if extension not in [".pdf", ".docx", ".txt"]:
+    if extension not in [".pdf", ".docx", ".txt", ".doc"]:
         raise HTTPException(status_code=400, detail="Unsupported file")
     with tempfile.NamedTemporaryFile(delete=False, suffix= extension) as tmp:
         shutil.copyfileobj(file.file, tmp)

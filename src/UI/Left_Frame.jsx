@@ -603,25 +603,32 @@ const ChatBox = () => {
                     ],
                     translation:""
                     };
-                    setAttachedFile(null);
                 }
                 else
                 {
+                    const PdfMessage = {
+                        role: "user",
+                        content: AttachedFile.name
+                    }
+                    setChatHistory((prev) => [...prev,PdfMessage]);
+                    try {
+                    
                     let file_format = new FormData();
                     file_format.append("file", AttachedFile);
-                    if(AttachedFile && file_format)
+                    
+                    if(file_format)
                     {
                         console.log(file_format);
                         await PostDocResponse(file_format);
                         
                     }
-                    const PdfMessage = {
-                        role: "user",
-                        content: AttachedFile.name
+                    }
+                    catch{
+                        console.log("Cant send file");
                     }
                     
-                    setChatHistory((prev) => [...prev,PdfMessage]);
-                    setAttachedFile(null);
+                    
+                    
                 }
             }
            
@@ -673,6 +680,7 @@ const ChatBox = () => {
             setIsLoading(false);
         }
         setOutlineColor("ring-white");
+        
         setAttachedFile(null);
         
     }
