@@ -26,7 +26,7 @@ const ChatBox = () => {
     const [ChatHandling, setChatHandling] = useState(false);
     const [defaultOutlineColor, setDefaultOutlineColor] = useState('')
     const [SystemSetting, setSystemSetting] = useState(null);
-    const [previewUrl, setPreviewUrl] = useState("");
+    const [previewUrl, setPreviewUrl] = useState(null);
     let AutoTrigger = useRef(false);
     let checkDragInBox = useRef(0);
     let SpeechQueue = useRef([]);
@@ -61,7 +61,7 @@ const ChatBox = () => {
     }, []);
 
     useEffect(() => {
-        console.log(ChatSession.topic);
+       
         if(IsCreatedNewSession.current)
         {
             IsCreatedNewSession.current= false;
@@ -118,7 +118,7 @@ const ChatBox = () => {
 
     useEffect(() => {
     if (!AttachedFile) {
-        setPreviewUrl("");
+        setPreviewUrl(null);
         return;
     };
 
@@ -136,7 +136,7 @@ const ChatBox = () => {
     }
 
     setPreviewUrl(url);
- // Cleanup: Xóa URL cũ khỏi RAM khi file thay đổi hoặc component đóng
+
     return () => {
         if (url.startsWith('blob:')) URL.revokeObjectURL(url);
     };
@@ -586,28 +586,42 @@ const ChatBox = () => {
             content: userMessage,
             translation:""
             }
+            
             if(AttachedFile)
             {
                 let resizeImageBase64OrUrl = "";
                 if(AttachedFile.type.startsWith('image/'))
                 {
+                   
                     const base64Raw = await getBase64FromUrl(AttachedFile);
-                    resizeImageBase64OrUrl= await(ResizeImage(base64Raw));
+                    let resizeImageBase64OrUrl= await(ResizeImage(base64Raw));
                     UserMessageObj = {
                     role: "user",
                     content: [
                         {type:"text", text: userMessage},
                         {type:"image_url", image_url:{url: resizeImageBase64OrUrl } }
                     ],
+                    translation:""
                     };
+                    setAttachedFile(null);
                 }
                 else
                 {
+                    let file_format = new FormData();
+                    file_format.append("file", AttachedFile);
+                    if(AttachedFile && file_format)
+                    {
+                        console.log(file_format);
+                        await PostDocResponse(file_format);
+                        
+                    }
                     const PdfMessage = {
                         role: "user",
                         content: AttachedFile.name
                     }
+                    
                     setChatHistory((prev) => [...prev,PdfMessage]);
+                    setAttachedFile(null);
                 }
             }
            
@@ -619,24 +633,26 @@ const ChatBox = () => {
 
 
             setChatHistory((prev) => [...prev,UserMessageObj]);
-
+            
             const HistoryToSend = [...chatHistory, UserMessageObj].filter(msg =>
             {
+                if(Array.isArray(msg.content)) return true;
                 if (typeof msg.content === 'string' && msg.content.startsWith('/'))
                 {
                     return false;
-                    
                 }
                 return !msg.content.startsWith('/');
             }
-            
             ).slice(-maxHistory).map(msg => {
+            if(Array.isArray(msg.content)) 
+            {
+                return msg;
+            }
+                
             let safeContent = msg.content;
             // Xử lý rút gọn nếu nội dung là chuỗi (chứa ảnh Base64 hoặc tag __IMAGE__)
             if (typeof(safeContent) === 'string') {
                 const isBase64 = safeContent.startsWith("data:") && safeContent.includes(";base64,");
-                
-                // Đã sửa lại vị trí dấu ngoặc và dùng toán tử || (HOẶC)
                 if (safeContent.startsWith("__IMAGE__:") || isBase64) {
                     safeContent = "[System: successfully create and send a picture]";
                 }
@@ -645,19 +661,7 @@ const ChatBox = () => {
                 role: msg.role,
                 content: safeContent
             };
-            });   
-            
-            
-            let ChosenTools = [];
-            let file_format = new FormData();
-            file_format.append("file", AttachedFile);
-            if(AttachedFile && file_format)
-            {
-                setAttachedFile(null);
-                setOutlineRingColor("ring-green-200");   
-                await PostDocResponse(file_format);
-                setOutlineRingColor("ring-white");
-            }
+            });               
             
             await HandleChatFrame(HistoryToSend, ChatModel, PersonaID);
         }
@@ -669,12 +673,12 @@ const ChatBox = () => {
             setIsLoading(false);
         }
         setOutlineColor("ring-white");
-        
+        setAttachedFile(null);
         
     }
     return(
-        <div ref={avatarRingRef} className={` hover:bg-gray-500/60 ${IsUITrasparent ? 'hover:opacity-100 opacity-0' : 'opacity-100'} hover:border-gray-300 border-gray-600  relative mt-5 p-2 pb-30 transition-colors   w-full h-full border-5 rounded-4xl bg-transparent transform-3d   ease-in-out`}>
-            <div className=' mt-10 space-y-6 h-[80dvh] overflow-auto '>
+        <div ref={avatarRingRef} className={` hover:bg-gray-500/60 ${IsUITrasparent ? 'hover:opacity-100 opacity-0' : 'opacity-100'} hover:border-gray-300 border-gray-600  relative mt-5 p-2 pb-40 transition-colors   w-full h-full border-5 rounded-4xl bg-transparent transform-3d   ease-in-out`}>
+            <div className=' mt-10  space-y-6 h-[80dvh] overflow-auto '>
                 {chatHistory.map((chatMessage, i) =>(
                     <ChatFrame key={i} role={chatMessage.role} message={chatMessage.content} translate={chatMessage.translation}></ChatFrame>
                 ))}

@@ -77,11 +77,18 @@ async def post_chat_respose(payload: ChatPayloadFormat, background_task:Backgrou
     chatHistory = payload.message
     target_model = payload.model
     PersonaID = payload.PersonaID
-    
+    role=""
+    content = ""
+    if (isinstance(chatHistory[-1].content, list)):
+        role = chatHistory[-1].role
+        content= chatHistory[-1].content[0].get("text","")
+    else:
+        role = chatHistory[-1].role
+        content = chatHistory[-1].content
     await UpdateChatHistoryBySession(session=payload.session, 
                                user_id=payload.user_id, 
-                               role=chatHistory[-1].role,
-                               content=chatHistory[-1].content,
+                               role=role,
+                               content=content,
                                metadata=payload.metadata)
     async def stream_and_collect():
         full_response = ""
@@ -100,6 +107,7 @@ async def post_chat_respose(payload: ChatPayloadFormat, background_task:Backgrou
         stream_and_collect(),
         media_type="text/plain"
     )
+
 @router.post("/GetChatSpeech")
 async def post_chat_speech(payload: SpeechRequestFormat):
     text = payload.text
@@ -130,6 +138,7 @@ async def PostDocumentContent(file: UploadFile = File(...)):
         if tmp_path and os.path.exists(tmp_path):
             os.remove(tmp_path)
         await file.close()
+
 @router.post("/GenerateIMG")
 async def post_image_generate(prompt:ImagePromptFormat):
     BasicPrompt = Image_Generation_Prompt_Format(prompt=prompt.prompt)
@@ -161,10 +170,20 @@ async def get_chat_session_general(username:str):
 @router.get("/GetChatSessionDetail")
 async def get_chat_session_detail(session:str, user_id:str):
     return await LoadChatHistoryBySession(session=session, user_id=user_id)
+
 class NewChatSessionPayload(BaseModel):
     user_id:str
     topic:str
 @router.post("/CreateNewChatSession")
 async def post_NewChatSession(payload: NewChatSessionPayload):
     return await CreateNewChatSession(user_id=payload.user_id, topic=payload.topic)
+
+@router.post('/UpdateChatSessionTopic')
+
+class UpdateTopicPayload(BaseModel):
+    session_id:str
+    user_id:str
+    topic:str
+
 Api_App.include_router(router)
+

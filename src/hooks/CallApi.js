@@ -26,6 +26,7 @@ export const GetChatResponse = async(session = '9f206986-d00e-4866-bff6-3023a316
         PersonaID: PersonaID,
          
     }
+    console.log(payload);
     const response  = await fetch("http://localhost:8000/api/v1/GetChatResponse",
         {
            method:"POST", 
@@ -59,7 +60,6 @@ export const PostDocResponse = async(document) => {
             method:"POST",
             body: document
         }
-        
     )
     if(!response.ok) throw new Error("Cant get Doc content");
     const result = await response.json();
