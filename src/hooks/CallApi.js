@@ -16,14 +16,15 @@ export const GetSpeechResponse = async(text, voice = "679de93ad46347289003470631
     const audioUrl = URL.createObjectURL(clob);
     return audioUrl;
 };
-export const GetChatResponse = async(chatHistory, chat_model, PersonaID = "Elysia") =>{
-    const format = new FormData();
-    format.append("chatHistory", JSON.stringify(chatHistory));
-    format.append("chat_model",chat_model);
+export const GetChatResponse = async(session = '9f206986-d00e-4866-bff6-3023a31623a7', user_id = 'b2c2a6b2-556e-4c68-abc3-21c7176d80e2', chat_history, chat_model, PersonaID = "Elysia", metadata = {}) =>{
     const payload = {
-        message: chatHistory,
+        session:session,
+        user_id:user_id,
+        metadata:{},
+        message: chat_history,
         model : chat_model,
-        PersonaID: PersonaID 
+        PersonaID: PersonaID,
+         
     }
     const response  = await fetch("http://localhost:8000/api/v1/GetChatResponse",
         {
@@ -110,4 +111,58 @@ export const PostSpeechToText = async(file) => {
         console.log("Error get text from speech");
         return null;
     }
+}
+
+export const GetChatHistoryGeneral = async(username) => {
+    try{
+        const response = await fetch(`http://localhost:8000/api/v1/GetChatSessionGeneral?username=${username}`,{
+            method:"GET",
+            headers: {"Content-Type":"application/json"},
+        
+        })
+        const result = await response.json();
+        return result;
+    }
+    catch
+    {
+        console.error("Cant get History");
+    }
+
+}
+
+export const GetChatSessionDetail = async(session, user_id) => {
+    if(session == 'defaultid') return null;
+    try{
+        const resposne = await fetch(`http://localhost:8000/api/v1/GetChatSessionDetail?session=${session}&user_id=${user_id}`,{
+            method:'GET',
+            headers: {"Content-Type":"application/json"}
+        });
+        const result = await resposne.json();
+        return result;
+    }
+    catch{
+        console.error("Cant get chat session");
+        return null;
+    }
+}
+
+export const CreateNewChatSession = async(user_id, topic) => {
+    const payload = {
+        user_id:user_id,
+        topic:topic
+    };
+    try{
+        const response = await fetch('http://localhost:8000/api/v1/CreateNewChatSession', {
+            method:"POST",
+            headers: {"Content-Type":"application/json"},
+            body:JSON.stringify(payload)
+        });
+        const result = await response.json();
+        return result;
+    }
+    catch{
+        console.error("Cant create new Session");
+        return null;
+    }
+    return null;
 }

@@ -1,9 +1,10 @@
-import React, { useState, useRef, useEffect } from  'react';
+import React, { useState, useRef,  useContext, useEffect } from  'react';
 import ChatFrame from './ChatFrame';
-import { GetChatResponse, PostDocResponse, GetImageGenerate, GetSpeechResponse, translateToNativeLanguage, GetSystemSetting } from '../hooks/CallApi';
+import { GetChatResponse, PostDocResponse, GetImageGenerate, GetSpeechResponse, translateToNativeLanguage, GetSystemSetting, GetChatSessionDetail, CreateNewChatSession } from '../hooks/CallApi';
 import { RecordSpeech } from './SpeechRecording';
+import { ChatContext } from './ChatContext';
 const ChatBox = () => {
-    const [chatHistory, setChatHistory] = useState([]);
+    const {chatHistory, setChatHistory} = useContext(ChatContext);
     const [userMessage, setUserMessage] = useState("");
     const [IsBoxOpened, setIsBoxOpened] = useState(false);
     const [isLoading, setIsLoading] = useState(false);
@@ -43,7 +44,11 @@ const ChatBox = () => {
     let IsAudioPlaying = useRef(false);
     let IsUsetool = useRef(false);
     const [IsOptionalToolsSelected, setIsOptionalToolsSelected] = useState(false);
-    
+    const CurrentChatSession = useRef();
+
+    const {ChatSession, setChatSession} = useContext(ChatContext);
+    let IsCreatedNewSession = useRef(false);
+    CurrentChatSession.current = ChatSession;
     useEffect(() => {
         const initSetting = async() => {
             const data = await GetSystemSetting();
@@ -54,6 +59,34 @@ const ChatBox = () => {
         };
         initSetting();
     }, []);
+
+    useEffect(() => {
+        console.log(ChatSession.topic);
+        if(IsCreatedNewSession.current)
+        {
+            IsCreatedNewSession.current= false;
+            return;
+
+        }
+        console.log(ChatSession);
+        const initChatSession = async() => {
+            
+            const ChatSessionDetail = await GetChatSessionDetail(ChatSession.session_id, ChatSession.user_id);
+            if(ChatSessionDetail)
+            {
+                console.log(ChatSessionDetail);
+                const SimplifyChatSession = ChatSessionDetail.map(item => ({
+                    role: item.role,
+                    content: item.content,
+                }));
+                setChatHistory(SimplifyChatSession);
+            }
+        };
+        
+        initChatSession();
+    }, [ChatSession])
+
+    
     let ChatModelList = SystemSetting?.ChatModelList;
     let PersonaSetting = SystemSetting?.PersonaSetting;
 
@@ -240,7 +273,7 @@ const ChatBox = () => {
                 content: "",
                 translation: ""
         };
-        const reader = await GetChatResponse(HistoryToSend, fChatModel, fPersonaID);
+        const reader = await GetChatResponse(CurrentChatSession.current.session_id, CurrentChatSession.current.user_id, HistoryToSend,  fChatModel,  fPersonaID, {});
             const decoder = new TextDecoder();
             setChatHistory(prev => [...prev, AssistantMessageObj]);
             let translationArray= [];
@@ -523,7 +556,7 @@ const ChatBox = () => {
     }
     const OnSubmitForm = async (e) => {
         e.preventDefault();
-       
+        
         if(!userMessage.trim() || isLoading)
         {
             return;
@@ -535,6 +568,14 @@ const ChatBox = () => {
         if (IsListening) stopListening();
         let bottext = "";
 
+        if(chatHistory.length === 0)
+        {
+            const NewChatSession = await CreateNewChatSession('b2c2a6b2-556e-4c68-abc3-21c7176d80e2', 'Random topic');
+            IsCreatedNewSession.current = true;
+            CurrentChatSession.current = NewChatSession;
+            console.log(CurrentChatSession.current);
+            setChatSession(NewChatSession)
+        }
         
         try{
             

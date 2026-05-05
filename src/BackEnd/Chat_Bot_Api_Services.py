@@ -1,4 +1,6 @@
 from fastapi import FastAPI, APIRouter, UploadFile,HTTPException,File, UploadFile, Form
+from fastapi import BackgroundTasks
+from contextlib import asynccontextmanager
 from fastapi.responses import StreamingResponse
 from fastapi.middleware.cors import CORSMiddleware
 from .Chat_Bot_Main import get_chat_response
@@ -10,6 +12,7 @@ from .Image_Generate import Generate_Img_Tool, Generate_img
 from .PromptFormat import Image_Generation_Prompt_Format
 from .Chroma_DB import AddFIleToMemory
 from .SpeechToText import SpeechToText
+from .Chat_Sesson_Manage import LoadChatHistoryBySession, LoadChatHistoryGeneral, pool, UpdateChatHistoryBySession, CreateNewChatSession
 import io
 import os
 import base64
@@ -18,7 +21,14 @@ import tempfile
 import json
 from pathlib import Path
 
-Api_App = FastAPI()
+
+@asynccontextmanager
+async def lifespan(app:FastAPI):
+    await pool.open()
+    yield
+    await pool.close()
+
+Api_App = FastAPI(lifespan=lifespan)
 
 origins = [
     "http://localhost:5173",
@@ -34,6 +44,8 @@ Api_App.add_middleware(
 
 )
 
+
+
 router = APIRouter(prefix="/api/v1")
 
 Api_App.mount("/Generated_image", StaticFiles(directory="Generated_image"), name="images")
@@ -44,20 +56,48 @@ class ChatMessage(BaseModel):
     content: Union[str, List[dict]]
 
 class ChatPayloadFormat(BaseModel):
+    session: str
+    user_id:str
+    metadata: Optional[dict] = {}
     message: List[ChatMessage]
     model: Optional[str] = "gpt-4o"
     PersonaID: str = "Elysia"
 class SpeechRequestFormat(BaseModel):
     text: str # Đổi thành 'text' cho khớp với hook Frontend của ông giáo
     voice: str = "679de93ad4634728900347063142e930"
+
+
+
+
+
+
     
 @router.post("/GetChatResponse")
-async def post_chat_respose(payload: ChatPayloadFormat):
+async def post_chat_respose(payload: ChatPayloadFormat, background_task:BackgroundTasks):
     chatHistory = payload.message
     target_model = payload.model
     PersonaID = payload.PersonaID
+    
+    await UpdateChatHistoryBySession(session=payload.session, 
+                               user_id=payload.user_id, 
+                               role=chatHistory[-1].role,
+                               content=chatHistory[-1].content,
+                               metadata=payload.metadata)
+    async def stream_and_collect():
+        full_response = ""
+        async for chunks in  get_chat_response(chatHistory=chatHistory, model=target_model, PersonaID=PersonaID):
+            full_response+=chunks
+            yield chunks
+
+        background_task.add_task(
+            UpdateChatHistoryBySession,session=payload.session, 
+                               user_id=payload.user_id, 
+                               role='assistant',
+                               content=full_response,
+                               metadata=None
+        )
     return StreamingResponse(
-        get_chat_response(chatHistory=chatHistory, model=target_model, PersonaID=PersonaID),
+        stream_and_collect(),
         media_type="text/plain"
     )
 @router.post("/GetChatSpeech")
@@ -110,4 +150,21 @@ async def get_system_setting():
 async def get_speech_to_text(file:UploadFile = File(...), language:str = Form('en')):
     data = SpeechToText(file=file, language=language)
     return StreamingResponse(data, media_type="text/plain")
+
+@router.get("/GetChatSessionGeneral")
+async def get_chat_session_general(username:str):
+    print(f"Get data by Username {username}")
+    data = await LoadChatHistoryGeneral(username= username)
+    return data
+
+
+@router.get("/GetChatSessionDetail")
+async def get_chat_session_detail(session:str, user_id:str):
+    return await LoadChatHistoryBySession(session=session, user_id=user_id)
+class NewChatSessionPayload(BaseModel):
+    user_id:str
+    topic:str
+@router.post("/CreateNewChatSession")
+async def post_NewChatSession(payload: NewChatSessionPayload):
+    return await CreateNewChatSession(user_id=payload.user_id, topic=payload.topic)
 Api_App.include_router(router)
