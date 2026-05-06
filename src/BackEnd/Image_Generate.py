@@ -9,7 +9,7 @@ import inspect
 from pydantic import TypeAdapter
 
 
-async def Generate_img(prompt: str) -> str:
+async def Generate_img(prompt: str, user_id:str) -> str:
     if not os.path.exists("Generated_image"):
         os.makedirs("Generated_image")
 

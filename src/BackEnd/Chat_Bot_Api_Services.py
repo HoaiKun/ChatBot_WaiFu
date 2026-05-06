@@ -1,5 +1,6 @@
-from fastapi import FastAPI, APIRouter, UploadFile,HTTPException,File, UploadFile, Form
-from fastapi import BackgroundTasks
+from fastapi import FastAPI, APIRouter, UploadFile,HTTPException,File, UploadFile, Form, Request, Response,status
+from fastapi import BackgroundTasks, Depends, Security
+from fastapi.security import OAuth2PasswordBearer
 from contextlib import asynccontextmanager
 from fastapi.responses import StreamingResponse
 from fastapi.middleware.cors import CORSMiddleware
@@ -12,15 +13,31 @@ from .Image_Generate import Generate_Img_Tool, Generate_img
 from .PromptFormat import Image_Generation_Prompt_Format
 from .Chroma_DB import AddFIleToMemory
 from .SpeechToText import SpeechToText
-from .Chat_Sesson_Manage import LoadChatHistoryBySession, LoadChatHistoryGeneral, pool, UpdateChatHistoryBySession, CreateNewChatSession, DeleteSection
+from .Chat_Sesson_Manage import GetUserByUsername, LoadChatHistoryBySession, LoadChatHistoryGeneral, pool, UpdateChatHistoryBySession, CreateNewChatSession, DeleteSection
+from .HandleUser import create_access_token, create_refresh_token, SECRET_KEY, REFRESH_SECRET_KEY, ALGORITHM
 import io
+from passlib.context import CryptContext
 import os
 import base64
 import shutil
 import tempfile
+import jwt
 import json
 from pathlib import Path
 
+pwd_context = CryptContext(schemes=['bcrypt'], deprecated = 'auto')
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="api/v1/PostLogin")
+
+async def get_current_user(token: str = Depends(oauth2_scheme)):
+    try:
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        user_id: str = payload.get("sub")
+
+        if user_id is None:
+            raise HTTPException(status_code=401, detail='Token got no ID')
+        return user_id
+    except jwt.PyJWTError:
+        raise HTTPException(status_code=401, detail='Token down')
 
 @asynccontextmanager
 async def lifespan(app:FastAPI):
@@ -73,7 +90,9 @@ class SpeechRequestFormat(BaseModel):
 
     
 @router.post("/GetChatResponse")
-async def post_chat_respose(payload: ChatPayloadFormat, background_task:BackgroundTasks):
+async def post_chat_respose(payload: ChatPayloadFormat, 
+                            background_task:BackgroundTasks,
+                            user_id:str = Depends(get_current_user)):
     chatHistory = payload.message
     target_model = payload.model
     PersonaID = payload.PersonaID
@@ -86,7 +105,7 @@ async def post_chat_respose(payload: ChatPayloadFormat, background_task:Backgrou
         role = chatHistory[-1].role
         content = chatHistory[-1].content
     await UpdateChatHistoryBySession(session=payload.session, 
-                               user_id=payload.user_id, 
+                               user_id=user_id, 
                                role=role,
                                content=content,
                                metadata=payload.metadata)
@@ -98,7 +117,7 @@ async def post_chat_respose(payload: ChatPayloadFormat, background_task:Backgrou
 
         background_task.add_task(
             UpdateChatHistoryBySession,session=payload.session, 
-                               user_id=payload.user_id, 
+                               user_id=user_id, 
                                role='assistant',
                                content=full_response,
                                metadata=None
@@ -144,9 +163,9 @@ async def PostDocumentContent(file: UploadFile = File(...),session_id: str = For
         await file.close()
 
 @router.post("/GenerateIMG")
-async def post_image_generate(prompt:ImagePromptFormat):
+async def post_image_generate(prompt:ImagePromptFormat, user_id = Depends(get_current_user)):
     BasicPrompt = Image_Generation_Prompt_Format(prompt=prompt.prompt)
-    result = await Generate_img(BasicPrompt)
+    result = await Generate_img(prompt=BasicPrompt, user_id=user_id)
     return {"role": "assistant", "content" : f"__IMAGE__{result}"}
 
 @router.get("/GetSystemSetting")
@@ -165,34 +184,82 @@ async def get_speech_to_text(file:UploadFile = File(...), language:str = Form('e
     return StreamingResponse(data, media_type="text/plain")
 
 @router.get("/GetChatSessionGeneral")
-async def get_chat_session_general(username:str):
-    print(f"Get data by Username {username}")
-    data = await LoadChatHistoryGeneral(username= username)
+async def get_chat_session_general(user_id:str = Depends(get_current_user)):
+    print(f"Get data by Username {user_id}")
+    data = await LoadChatHistoryGeneral(user_id= user_id)
     return data
 
 
 @router.get("/GetChatSessionDetail")
-async def get_chat_session_detail(session:str, user_id:str):
+async def get_chat_session_detail(session:str, user_id:str = Depends(get_current_user)):
     return await LoadChatHistoryBySession(session=session, user_id=user_id)
 
 class NewChatSessionPayload(BaseModel):
-    user_id:str
     topic:str
 @router.post("/CreateNewChatSession")
-async def post_NewChatSession(payload: NewChatSessionPayload):
-    return await CreateNewChatSession(user_id=payload.user_id, topic=payload.topic)
+async def post_NewChatSession(payload: NewChatSessionPayload, user_id:str = Depends(get_current_user)):
+    return await CreateNewChatSession(user_id=user_id, topic=payload.topic)
 
 class DeleteSessionPayload(BaseModel):
     session_id :str
-    user_id:str
+    
 @router.post('/DeleteChatSession')
-async def PostDeleteChatSession(obj:DeleteSessionPayload ):
-    return await DeleteSection(session=obj.session_id, user_id=obj.user_id)
+async def PostDeleteChatSession(obj:DeleteSessionPayload , user_id : str = Depends(get_current_user)):
+    return await DeleteSection(session=obj.session_id, user_id=user_id)
 
-class UpdateTopicPayload(BaseModel):
-    session_id:str
-    user_id:str
-    topic:str
+class LoginSchema(BaseModel):
+    username:str
+    password:str
 
+class RegisterSchema(BaseModel):
+    username:str
+    password:str
+    email: Optional[str] = ""
+
+@router.post("/PostRefreshLogin")
+async def RefreshLoginToken(login_data:Request):
+    refresh_token =  login_data.cookies.get("refresh_token")
+
+    if not refresh_token:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="No refresh token founded. Please login again"
+        )
+    try:
+        payload = jwt.decode(refresh_token, REFRESH_SECRET_KEY, algorithms=ALGORITHM)
+
+        if payload.get("type") != "refresh":
+            raise HTTPException(status_code=401, detail='Token cotaint trash data')
+
+        user_id = payload.get("sub")
+
+        if user_id is None:
+            raise HTTPException(status_code=401, detail='Token cotaint trash data')
+
+        new_access_token = create_access_token(data={"sub":user_id})
+
+        return {"access_token" : new_access_token}
+    
+    except jwt.ExpiredSignatureError:
+        raise HTTPException(status_code=401, detail='Refresh token outdated')
+    except jwt.PyJWTError:
+        raise HTTPException(status_code=401, detail='Token down')
+    
+@router.post("/PostLogin")
+async def PostLogin(response: Response, payload: LoginSchema):
+    
+    user_data = await GetUserByUsername(payload.username)
+
+    if not user_data:
+        raise HTTPException(status_code=400, detail='No existed user')
+    if not pwd_context.verify(payload.password, user_data['password']):
+        raise HTTPException(status_code=400, detail="Username or Password failed")
+
+    access_token = create_access_token(data={"sub": str(user_data['user_id']), 'username': user_data['username']})
+    refresh_token = create_refresh_token(data={'sub':str(user_data['user_id'])})
+
+    response.set_cookie(key='refresh_token', value=refresh_token, httponly=True)
+
+    return {"access_token":access_token, "username": user_data['username']}
 Api_App.include_router(router)
 

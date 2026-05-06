@@ -15,6 +15,7 @@ dist/
 # Database & Local Storage (Cực kỳ quan trọng)
 Chroma_DB_WaifuMemory/
 **/Chroma_DB_WaifuMemory/
+parent_chunks_data/
 AudioSave/
 *.mp3
 *.wav

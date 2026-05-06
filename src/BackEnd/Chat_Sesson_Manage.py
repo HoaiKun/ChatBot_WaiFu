@@ -17,14 +17,14 @@ pool = AsyncConnectionPool(
     kwargs={"row_factory": dict_row}
 )
 
-async def LoadChatHistoryGeneral(username:str):
+async def LoadChatHistoryGeneral(user_id:str):
     async with  pool.connection() as conn:
         async with conn.cursor() as cur:
             query = """
             select session_id, ct.user_id user_id, topic, ct.created_date created_date  from ChatTopic ct join senpai s 
-            on ct.user_id =s.user_id where s.username = %s order by ct.created_date desc;
+            on ct.user_id =s.user_id where s.user_id = %s order by ct.created_date desc;
             """
-            await cur.execute(query, (username,))
+            await cur.execute(query, (user_id,))
             return await cur.fetchall()
         
 async def LoadChatHistoryBySession(session, user_id):
@@ -92,3 +92,12 @@ async def DeleteSection(session, user_id):
             """
             await cc.execute(query, (session,user_id))
             return "Deleted"
+        
+async def GetUserByUsername(username:str):
+    async with  pool.connection() as c:
+        async with c.cursor() as cc:
+            query = """
+            select * from senpai where username = %s
+            """
+            await cc.execute(query, (username,))
+            return await cc.fetchone()
