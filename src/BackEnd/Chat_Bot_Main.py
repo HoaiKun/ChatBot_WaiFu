@@ -52,7 +52,7 @@ async def get_chat_response(session:str,chatHistory:list, model: str = "gpt-4o",
          f"Context: {context}"
 )
     
-    
+    fullresponse = ''
     systemMessage = {"role" : "system", "content": systemContent}
     mainmodel=model
     print(f"Model: {mainmodel}")
@@ -69,7 +69,9 @@ async def get_chat_response(session:str,chatHistory:list, model: str = "gpt-4o",
                  chunk = event.delta
                  if not chunk: continue
                  fulltext += chunk
+                 fullresponse += chunk
                  try:
+                     
                      yield chunk
                  except Exception as e:
                       print("Fail")
@@ -84,10 +86,8 @@ async def get_chat_response(session:str,chatHistory:list, model: str = "gpt-4o",
             print(f"Tools {first_tool.function.name}")
             args_prompt = args['prompt']
             if(first_tool.function.name == "AnswearFromDoc"):
-                
                 async for chunk in AnswearDocument(prompt=userMessage, general_context= args_prompt, model=model, session = session):
                     yield chunk
-
             if(first_tool.function.name == Generate_Img_Tool["function"]["name"]):
                 async for chunk in Generate_img(prompt=args_prompt):
                     yield f"__IMAGE__:{chunk}"
@@ -97,23 +97,37 @@ async def get_chat_response(session:str,chatHistory:list, model: str = "gpt-4o",
             if(first_tool.function.name == search_news_tools["function"]["name"]):
                 async for chunk in handle_search_news(prompt=userMessage, search_data=await search_news(args['prompt']), model=model):
                     yield chunk
- 
-        bot_obj = final_completion.choices[0].message.parsed
-        if bot_obj:
-              asyncio.create_task(save_chat_response(userMes=context_string, botRep=bot_obj.message))  
+    
+    
+    if fullresponse:
+        print(f'Saved context {fullresponse}')
+        asyncio.create_task(save_chat_response(userMes=context_string, botRep=fullresponse, session=session))  
 
-async def save_chat_response(userMes:str, botRep:str):
-    systemMessage = (
-            "You are the Memory as well as context summarizer. Your job is to extract and structure memories from the conversation and fill data into format, all field must have value.\n\n"
-        )
-    response_memory = await client.beta.chat.completions.parse(
+async def save_chat_response(userMes:str, botRep:str, session:str):
+    system_prompt = (
+        "You are a Memory Extractor. Extract information into a JSON object.\n"
+        "STRICT JSON FORMAT:\n"
+        "{\n"
+        '  "content": "summary of the interaction",\n'
+        '  "emotion": {"neutral": 0.0, "joy": 0.0, "sadness": 0.0, "anger": 0.0, "fear": 0.0, "surprise": 0.0, "disgust": 0.0},\n'
+        '  "importance": 1-10,\n'
+        '  "category": ["cat1", "cat2"],\n'
+        '  "keywords": ["key1", "key2"]\n'
+        "}\n"
+        "Rules: Emotion scores must be floats between 0 and 1. Importance is an integer."
+    )
+    ollmaclient = AsyncOpenAI(
+        base_url="http://localhost:11434/v1", # Trỏ về Ollama local
+        api_key="ollama",
+    )
+    response_memory = await ollmaclient.chat.completions.create(
 
-        model='gpt-4o-mini',
-        response_format= Vector_DB_Format,
+        model="qwen2.5:7b",
+        response_format= {"type": "json_object"},
         messages=[
             {
                 "role" : "system",
-                "content": systemMessage
+                "content": system_prompt
             },
             {
                 "role":"user",
@@ -121,7 +135,11 @@ async def save_chat_response(userMes:str, botRep:str):
             }
         ]
     )
-    save_obj = response_memory.choices[0].message.parsed
+    raw_json = response_memory.choices[0].message.content
+    data_dict = json.loads(raw_json)
+    save_obj = Vector_DB_Format(**data_dict)
+    save_obj.chat_session = session
+    print(save_obj)
     save_obj.timestamp = datetime.now().isoformat()
     await SaveMemoryToVectorDB(save_obj)
     print("Đã save nha xếp")

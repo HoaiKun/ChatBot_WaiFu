@@ -12,15 +12,16 @@ async def GetExternalDataFromDocument(prompt: str, session:str) -> str:
         Base on user prompt, find out what user want, decide what the proper query to search in Chromadb and use the data that get from Chromadb to answear user Question
     """
     client = OpenAI(
-        api_key=os.getenv("OPENAI_API_KEY")
+        base_url="http://localhost:11434/v1", # Trỏ về Ollama local
+        api_key="ollama",
     )
     ClientGo = client.chat.completions.create(
-        model="gpt-4o-mini",
+        model="qwen2.5:7b",
         temperature=0.5,
         messages=[
             {
                 "role":"system",
-                "content": "Your mission is to find out what user want and decide what data should query/find in the Chromadb to answear user prompt"
+                "content": "Your mission is convert user prompt into search query for optimized for vector DB"
             },
             {
                 "role": "user",
@@ -39,8 +40,9 @@ async def AnswearDocument(prompt: str, general_context:str, model: str, session:
     """
     Client = AsyncOpenAI(api_key=os.getenv("OPENAI_API_KEY")) 
     general_data = await GetExternalDataFromDocument(prompt=general_context, session=session)
+    print(f"General data at session {session}")
     async with Client.beta.chat.completions.stream(
-        model="gpt-4o",
+        model=model,
         temperature=0.6,
         messages=[
             {

@@ -12,9 +12,10 @@ from langchain.storage import LocalFileStore
 from langchain.storage._lc_store import create_kv_docstore
 from dotenv import load_dotenv
 from .PromptFormat import Vector_DB_Format
-
+import pypandoc
 import os
 import json
+from langchain_ollama import OllamaEmbeddings
 load_dotenv()
 
 PARENT_STORE_DIR = "./parent_chunks_data"
@@ -31,9 +32,8 @@ store = create_kv_docstore(fs)
 
 api_key = os.getenv("OPENAI_API_KEY")
 
-embeddings = OpenAIEmbeddings(
-    model="text-embedding-3-small",
-    openai_api_key = api_key
+embeddings = OllamaEmbeddings(
+    model="nomic-embed-text"
 )
 
 Memory_DB = Chroma(
@@ -87,6 +87,10 @@ async def AddFIleToMemory(filepath:str, extension:str, session_id:str):
         loader = PyPDFLoader(filepath)
     elif extension == ".docx":
         loader = Docx2txtLoader(filepath)
+    elif extension == ".doc":
+        temp_path = filepath + "x" # thành .docx
+        pypandoc.convert_file(filepath, 'docx', outputfile=temp_path)
+        loader = Docx2txtLoader(temp_path)
     elif extension == ".txt":
         # Với file txt, nên chỉ định encoding để tránh lỗi tiếng Việt
         loader = TextLoader(filepath, encoding="utf-8")
@@ -101,6 +105,7 @@ async def AddFIleToMemory(filepath:str, extension:str, session_id:str):
     print("PDF Save")
 
 async def GetPDFDetail(query:str, session_id:str):
+    print(f"Finding information by session: {session_id}")
     sub_docs = DocRetriever.vectorstore.similarity_search(
         query=query,
         k=10,

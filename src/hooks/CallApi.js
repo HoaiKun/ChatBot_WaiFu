@@ -131,7 +131,8 @@ export const GetChatHistoryGeneral = async(username) => {
 }
 
 export const GetChatSessionDetail = async(session, user_id) => {
-    if(session == 'defaultid') return null;
+    
+    if(session === "defaultid") return null;
     try{
         const resposne = await fetch(`http://localhost:8000/api/v1/GetChatSessionDetail?session=${session}&user_id=${user_id}`,{
             method:'GET',
@@ -153,6 +154,28 @@ export const CreateNewChatSession = async(user_id, topic) => {
     };
     try{
         const response = await fetch('http://localhost:8000/api/v1/CreateNewChatSession', {
+            method:"POST",
+            headers: {"Content-Type":"application/json"},
+            body:JSON.stringify(payload)
+        });
+        const result = await response.json();
+        return result;
+    }
+    catch{
+        console.error("Cant create new Session");
+        return null;
+    }
+    return null;
+}
+export const DeleteSection = async(session_id, user_id) => {
+    
+    const payload = {
+        session_id:session_id,
+        user_id:user_id,
+    };
+    console.log("Deleting " + payload)
+    try{
+        const response = await fetch('http://localhost:8000/api/v1/DeleteChatSession', {
             method:"POST",
             headers: {"Content-Type":"application/json"},
             body:JSON.stringify(payload)

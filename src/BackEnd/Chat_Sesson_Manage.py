@@ -4,7 +4,7 @@ from psycopg.rows import dict_row
 import os
 from dotenv import load_dotenv
 import uuid
-from openai import OpenAI
+from openai import AsyncOpenAI
 from dotenv import load_dotenv
 load_dotenv()
 password = os.getenv("Waifu_Chatbot_DB_Password")
@@ -51,11 +51,19 @@ async def UpdateChatHistoryBySession(session, user_id, role, content, metadata =
         
 
 async def CreateNewChatSession(user_id: str, topic:str = "New Chat"):
-    client = OpenAI(api_key=os.getenv('OPENAI_API_KEY'))
-    get_topic = client.chat.completions.create(
-        model='gpt-4o',
-        temperature=0.5,
+    client = AsyncOpenAI(
+        base_url="http://localhost:11434/v1", # Trỏ về Ollama local
+        api_key="ollama"
+    )
+    print(f"~~~~~~provided raw topic: {topic}")
+    get_topic = await client.chat.completions.create(
+        model='qwen2.5:7b',
+        temperature=0.2,
         messages=[
+            {
+                "role" :"system",
+                'content' : 'You are a topic summarizer. Your misison is from user prompt, covert it into a short generalize topic for a chat session in a human way. Just give the straight topic.'
+            },
             {
                 "role":"user",
                 "content": f"From this prompt: {topic}, connvert it into a very short topic sentence for a chat session"
@@ -63,7 +71,7 @@ async def CreateNewChatSession(user_id: str, topic:str = "New Chat"):
         ]
     )
     topic_sentence = get_topic.choices[0].message.content
-    newuuid = uuid.uuid4()
+    newuuid = str(uuid.uuid4())
     async with pool.connection() as c:
         async with c.cursor() as cc:
             query = """
@@ -74,3 +82,13 @@ async def CreateNewChatSession(user_id: str, topic:str = "New Chat"):
             await cc.execute(query, (newuuid,user_id, topic_sentence,))
             print('Create chat session')
             return {'session_id':newuuid, 'user_id':user_id, 'topic':topic_sentence}
+        
+
+async def DeleteSection(session, user_id):
+    async with  pool.connection() as c:
+        async with c.cursor() as cc:
+            query = """
+            delete from ChatTopic where session_id = %s and user_id = %s
+            """
+            await cc.execute(query, (session,user_id))
+            return "Deleted"

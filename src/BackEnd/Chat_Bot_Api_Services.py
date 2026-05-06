@@ -12,7 +12,7 @@ from .Image_Generate import Generate_Img_Tool, Generate_img
 from .PromptFormat import Image_Generation_Prompt_Format
 from .Chroma_DB import AddFIleToMemory
 from .SpeechToText import SpeechToText
-from .Chat_Sesson_Manage import LoadChatHistoryBySession, LoadChatHistoryGeneral, pool, UpdateChatHistoryBySession, CreateNewChatSession
+from .Chat_Sesson_Manage import LoadChatHistoryBySession, LoadChatHistoryGeneral, pool, UpdateChatHistoryBySession, CreateNewChatSession, DeleteSection
 import io
 import os
 import base64
@@ -127,6 +127,7 @@ async def PostDocumentContent(file: UploadFile = File(...),session_id: str = For
     filename = file.filename
     extension = os.path.splitext(filename)[1].lower()
     tmp_path = None
+    print(f'Save document by session {session_id}')
     if extension not in [".pdf", ".docx", ".txt", ".doc"]:
         raise HTTPException(status_code=400, detail="Unsupported file")
     with tempfile.NamedTemporaryFile(delete=False, suffix= extension) as tmp:
@@ -181,7 +182,12 @@ class NewChatSessionPayload(BaseModel):
 async def post_NewChatSession(payload: NewChatSessionPayload):
     return await CreateNewChatSession(user_id=payload.user_id, topic=payload.topic)
 
-@router.post('/UpdateChatSessionTopic')
+class DeleteSessionPayload(BaseModel):
+    session_id :str
+    user_id:str
+@router.post('/DeleteChatSession')
+async def PostDeleteChatSession(obj:DeleteSessionPayload ):
+    return await DeleteSection(session=obj.session_id, user_id=obj.user_id)
 
 class UpdateTopicPayload(BaseModel):
     session_id:str

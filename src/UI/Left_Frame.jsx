@@ -7,7 +7,7 @@ const ChatBox = () => {
     const {chatHistory, setChatHistory} = useContext(ChatContext);
     const [userMessage, setUserMessage] = useState("");
     const [IsBoxOpened, setIsBoxOpened] = useState(false);
-    const [isLoading, setIsLoading] = useState(false);
+    let {isLoading, setIsLoading} = useContext(ChatContext);
     const [PersonaID, setPersonaID] = useState("Elysia")
     const [IsPersonaIDOpen, setIsPersonaIDOpen] = useState(false);
     const [OutlineColor, setOutlineColor] = useState("border-white");
@@ -70,7 +70,11 @@ const ChatBox = () => {
         }
         console.log(ChatSession);
         const initChatSession = async() => {
-            
+            if(ChatSession.session_id == 'defaultid')
+            {
+                setChatHistory([]);
+                return;
+            }
             const ChatSessionDetail = await GetChatSessionDetail(ChatSession.session_id, ChatSession.user_id);
             if(ChatSessionDetail)
             {
@@ -561,22 +565,22 @@ const ChatBox = () => {
         {
             return;
         }
+        setIsLoading(true);
         
-        setUserMessage("");
-        setPasteImage("");
         if(HandleCommand(userMessage)) return;
         if (IsListening) stopListening();
         let bottext = "";
-
+        
         if(chatHistory.length === 0)
         {
-            const NewChatSession = await CreateNewChatSession('b2c2a6b2-556e-4c68-abc3-21c7176d80e2', 'Random topic');
+            const NewChatSession = await CreateNewChatSession('b2c2a6b2-556e-4c68-abc3-21c7176d80e2', userMessage);
             IsCreatedNewSession.current = true;
             CurrentChatSession.current = NewChatSession;
             console.log(CurrentChatSession.current);
             setChatSession(NewChatSession)
         }
-        
+        setUserMessage("");
+        setPasteImage("");
         try{
             
            
@@ -606,11 +610,7 @@ const ChatBox = () => {
                 }
                 else
                 {
-                    const PdfMessage = {
-                        role: "user",
-                        content: AttachedFile.name
-                    }
-                    setChatHistory((prev) => [...prev,PdfMessage]);
+                    UserMessageObj.content = AttachedFile.name + '\n' + UserMessageObj.content;
                     try {
                     
                     let file_format = new FormData();
@@ -626,7 +626,7 @@ const ChatBox = () => {
                     catch{
                         console.log("Cant send file");
                     }
-                    
+                    setAttachedFile(null);
                     
                     
                 }
@@ -681,7 +681,7 @@ const ChatBox = () => {
         }
         setOutlineColor("ring-white");
         
-        setAttachedFile(null);
+       
         
     }
     return(
