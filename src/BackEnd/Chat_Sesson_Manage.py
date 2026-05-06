@@ -58,7 +58,7 @@ async def CreateNewChatSession(user_id: str, topic:str = "New Chat"):
     print(f"~~~~~~provided raw topic: {topic}")
     get_topic = await client.chat.completions.create(
         model='qwen2.5:7b',
-        temperature=0.2,
+        temperature=0.5,
         messages=[
             {
                 "role" :"system",
@@ -100,4 +100,15 @@ async def GetUserByUsername(username:str):
             select * from senpai where username = %s
             """
             await cc.execute(query, (username,))
+            return await cc.fetchone()
+
+async def AddUser(username:str, password:str, emaiL:str = None):
+    async with  pool.connection() as c:
+        async with c.cursor() as cc:
+            query = """
+            insert into senpai (username, password, email)
+            values (%s, %s, %s)
+            RETURNING user_id;
+            """
+            await cc.execute(query, (username, password,emaiL))
             return await cc.fetchone()

@@ -3,6 +3,7 @@ import ChatFrame from './ChatFrame';
 import { GetChatResponse, PostDocResponse, GetImageGenerate, GetSpeechResponse, translateToNativeLanguage, GetSystemSetting, GetChatSessionDetail, CreateNewChatSession } from '../hooks/CallApi';
 import { RecordSpeech } from './SpeechRecording';
 import { ChatContext } from './ChatContext';
+import { useAuth } from './AuthContext';
 const ChatBox = () => {
     const {chatHistory, setChatHistory} = useContext(ChatContext);
     const [userMessage, setUserMessage] = useState("");
@@ -45,7 +46,7 @@ const ChatBox = () => {
     let IsUsetool = useRef(false);
     const [IsOptionalToolsSelected, setIsOptionalToolsSelected] = useState(false);
     const CurrentChatSession = useRef();
-
+    const CurrentUserMessage = useRef('');
     const {ChatSession, setChatSession} = useContext(ChatContext);
     let IsCreatedNewSession = useRef(false);
     CurrentChatSession.current = ChatSession;
@@ -75,7 +76,7 @@ const ChatBox = () => {
                 setChatHistory([]);
                 return;
             }
-            const ChatSessionDetail = await GetChatSessionDetail(ChatSession.session_id, ChatSession.user_id);
+            const ChatSessionDetail = await GetChatSessionDetail(ChatSession.session_id);
             if(ChatSessionDetail)
             {
                 console.log(ChatSessionDetail);
@@ -277,7 +278,7 @@ const ChatBox = () => {
                 content: "",
                 translation: ""
         };
-        const reader = await GetChatResponse(CurrentChatSession.current.session_id, CurrentChatSession.current.user_id, HistoryToSend,  fChatModel,  fPersonaID, {});
+        const reader = await GetChatResponse(CurrentChatSession.current.session_id, HistoryToSend,  fChatModel,  fPersonaID, {});
             const decoder = new TextDecoder();
             setChatHistory(prev => [...prev, AssistantMessageObj]);
             let translationArray= [];
@@ -566,6 +567,7 @@ const ChatBox = () => {
             return;
         }
         setIsLoading(true);
+        setOutlineRingColor('bg-green-500');
         
         if(HandleCommand(userMessage)) return;
         if (IsListening) stopListening();
@@ -573,7 +575,7 @@ const ChatBox = () => {
         
         if(chatHistory.length === 0)
         {
-            const NewChatSession = await CreateNewChatSession('b2c2a6b2-556e-4c68-abc3-21c7176d80e2', userMessage);
+            const NewChatSession = await CreateNewChatSession( userMessage);
             IsCreatedNewSession.current = true;
             CurrentChatSession.current = NewChatSession;
             console.log(CurrentChatSession.current);
@@ -679,7 +681,7 @@ const ChatBox = () => {
         finally{
             setIsLoading(false);
         }
-        setOutlineColor("ring-white");
+             
         
        
         
@@ -696,7 +698,7 @@ const ChatBox = () => {
                 {IsDragging && (
                     <div className='absolute inset-0 z-50 bg-red-300/20 rounded-2xl pointer-events-none'></div>
                 )}
-                <form className='align-bottom items-center mt-5' onSubmit={OnSubmitForm}>
+                <form  className='align-bottom items-center mt-5' onSubmit={OnSubmitForm}>
                 <div className={`h-fit ml-5 w-fit rounded-2xl relative`}>
                     {AttachedFile && (
                         <div className='w-fit h-fit shadow-2xs relative'>

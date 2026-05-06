@@ -1,6 +1,8 @@
 import { pass } from "three/src/nodes/display/PassNode.js";
-
+import { useAuth } from "../UI/AuthContext";
+const GetToken = () => localStorage.getItem("waifu_token");
 export const GetSpeechResponse = async(text, voice = "679de93ad4634728900347063142e930") => {
+   const token = GetToken();
     const payload = {
             text : text,
             voice : voice
@@ -8,7 +10,9 @@ export const GetSpeechResponse = async(text, voice = "679de93ad46347289003470631
     const response = await fetch("http://localhost:8000/api/v1/GetChatSpeech",
         {
             method:"POST",
-            headers: {"Content-Type":"application/json"},
+            headers: {"Content-Type":"application/json",
+                "Authorization": `Bearer ${token}`
+            },
             body: JSON.stringify(payload)
         });
     if(!response.ok) throw new Error("Error getting speech done");
@@ -16,10 +20,10 @@ export const GetSpeechResponse = async(text, voice = "679de93ad46347289003470631
     const audioUrl = URL.createObjectURL(clob);
     return audioUrl;
 };
-export const GetChatResponse = async(session = '9f206986-d00e-4866-bff6-3023a31623a7', user_id = 'b2c2a6b2-556e-4c68-abc3-21c7176d80e2', chat_history, chat_model, PersonaID = "Elysia", metadata = {}) =>{
+export const GetChatResponse = async(session = '9f206986-d00e-4866-bff6-3023a31623a7', chat_history, chat_model, PersonaID = "Elysia", metadata = {}) =>{
+    const token = GetToken();
     const payload = {
         session:session,
-        user_id:user_id,
         metadata:{},
         message: chat_history,
         model : chat_model,
@@ -30,7 +34,9 @@ export const GetChatResponse = async(session = '9f206986-d00e-4866-bff6-3023a316
     const response  = await fetch("http://localhost:8000/api/v1/GetChatResponse",
         {
            method:"POST", 
-           headers: {"Content-Type":"application/json"},
+           headers: {"Content-Type":"application/json",
+            "Authorization": `Bearer ${token}`
+           },
            body: JSON.stringify(payload)
         }
     );
@@ -39,13 +45,16 @@ export const GetChatResponse = async(session = '9f206986-d00e-4866-bff6-3023a316
 };
 
 export const GetImageGenerate = async(user_prompt) => {
+    const token = GetToken();
     const payload = {
         prompt: user_prompt
     }
     const resposne = await fetch("http://localhost:8000/api/v1/GenerateIMG", 
     {
         method:"POST",
-        headers: {"Content-Type":"application/json"},
+        headers: {"Content-Type":"application/json",
+            "Authorization": `Bearer ${token}`
+        },
         body: JSON.stringify(payload)
     })
     if(!resposne.ok) throw new Error("Error getting Image_generated");
@@ -54,11 +63,15 @@ export const GetImageGenerate = async(user_prompt) => {
 };
 
 export const PostDocResponse = async(document) => {
-
+    
+    const token = GetToken();
     const response = await fetch("http://localhost:8000/api/v1/PostDocumentContent",
         {
             method:"POST",
-            body: document
+            body: document,
+            headers:{
+                "Authorization": `Bearer ${token}`
+            }
         }
     )
     if(!response.ok) throw new Error("Cant get Doc content");
@@ -67,6 +80,7 @@ export const PostDocResponse = async(document) => {
 }
 
 export const translateToNativeLanguage = async(text, targetLang = "en") => {
+    const token = GetToken();
     try{
         const url = `https://translate.googleapis.com/translate_a/single?client=gtx&sl=auto&tl=${targetLang}&dt=t&q=${encodeURIComponent(text)}`;
         const res = await fetch(url);
@@ -78,12 +92,15 @@ export const translateToNativeLanguage = async(text, targetLang = "en") => {
 }
 
 export const GetSystemSetting = async() => {
+   const token = GetToken();
     try
     {
         const response  = await fetch("http://localhost:8000/api/v1/GetSystemSetting",
             {
                 method:"GET",
-                headers:{"Content-Type":"application/json"},
+                headers:{"Content-Type":"application/json",
+                    "Authorization": `Bearer ${token}`
+                },
             }
         );
         const data = await response.json();
@@ -96,12 +113,13 @@ export const GetSystemSetting = async() => {
 }
 
 export const PostSpeechToText = async(file) => {
+    const token = GetToken();
     try{
         const response = await fetch("http://localhost:8000/api/v1/GetSpeechToText",{
             method:"POST",
-            body: file
+            body: file,
+            headers:{"Authorization": `Bearer ${token}`}
         });
-
         if(!response.ok) throw new Error("Error from backend");
         const reader = response.body.getReader();
         return reader;
@@ -113,11 +131,14 @@ export const PostSpeechToText = async(file) => {
     }
 }
 
-export const GetChatHistoryGeneral = async(username) => {
+export const GetChatHistoryGeneral = async() => {
+    const token = GetToken();
     try{
-        const response = await fetch(`http://localhost:8000/api/v1/GetChatSessionGeneral?username=${username}`,{
+        const response = await fetch(`http://localhost:8000/api/v1/GetChatSessionGeneral`,{
             method:"GET",
-            headers: {"Content-Type":"application/json"},
+            headers: {"Content-Type":"application/json",
+                "Authorization": `Bearer ${token}`
+            },
         
         })
         const result = await response.json();
@@ -130,13 +151,16 @@ export const GetChatHistoryGeneral = async(username) => {
 
 }
 
-export const GetChatSessionDetail = async(session, user_id) => {
+export const GetChatSessionDetail = async(session) => {
     
+    const token = GetToken();
     if(session === "defaultid") return null;
     try{
-        const resposne = await fetch(`http://localhost:8000/api/v1/GetChatSessionDetail?session=${session}&user_id=${user_id}`,{
+        const resposne = await fetch(`http://localhost:8000/api/v1/GetChatSessionDetail?session=${session}`,{
             method:'GET',
-            headers: {"Content-Type":"application/json"}
+            headers: {"Content-Type":"application/json",
+                "Authorization": `Bearer ${token}`
+            }
         });
         const result = await resposne.json();
         return result;
@@ -147,13 +171,62 @@ export const GetChatSessionDetail = async(session, user_id) => {
     }
 }
 
-export const CreateNewChatSession = async(user_id, topic) => {
+export const CreateNewChatSession = async( topic) => {
+   const token = GetToken();
     const payload = {
-        user_id:user_id,
+        
         topic:topic
     };
     try{
         const response = await fetch('http://localhost:8000/api/v1/CreateNewChatSession', {
+            method:"POST",
+            headers: {"Content-Type":"application/json",
+                "Authorization": `Bearer ${token}`
+            },
+            body:JSON.stringify(payload)
+        });
+        const result = await response.json();
+        return result;
+    }
+    catch{
+        console.error("Cant create new Session");
+        return null;
+    }
+    return null;
+}
+export const DeleteSection = async(session_id) => {
+    const token = GetToken();
+    const payload = {
+        session_id:session_id,
+        
+    };
+    console.log("Deleting " + payload)
+    try{
+        const response = await fetch('http://localhost:8000/api/v1/DeleteChatSession', {
+            method:"POST",
+            headers: {"Content-Type":"application/json",
+                "Authorization": `Bearer ${token}`
+            },
+            body:JSON.stringify(payload)
+        });
+        const result = await response.json();
+        return result;
+    }
+    catch{
+        console.error("Cant create new Session");
+        return null;
+    }
+    return null;
+}
+
+export const SignUp = async(username, password, email = '') =>{
+    const payload = {
+        username:username,
+        password:password,
+        email:email
+    };
+    try{
+        const response = await fetch('http://localhost:8000/api/v1/PostSignUp', {
             method:"POST",
             headers: {"Content-Type":"application/json"},
             body:JSON.stringify(payload)
@@ -167,15 +240,16 @@ export const CreateNewChatSession = async(user_id, topic) => {
     }
     return null;
 }
-export const DeleteSection = async(session_id, user_id) => {
-    
+
+export const LogIn = async(username, password) =>
+{
+
     const payload = {
-        session_id:session_id,
-        user_id:user_id,
+        username:username,
+        password:password,
     };
-    console.log("Deleting " + payload)
     try{
-        const response = await fetch('http://localhost:8000/api/v1/DeleteChatSession', {
+        const response = await fetch('http://localhost:8000/api/v1/PostLogin', {
             method:"POST",
             headers: {"Content-Type":"application/json"},
             body:JSON.stringify(payload)

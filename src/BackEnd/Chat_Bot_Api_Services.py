@@ -13,7 +13,7 @@ from .Image_Generate import Generate_Img_Tool, Generate_img
 from .PromptFormat import Image_Generation_Prompt_Format
 from .Chroma_DB import AddFIleToMemory
 from .SpeechToText import SpeechToText
-from .Chat_Sesson_Manage import GetUserByUsername, LoadChatHistoryBySession, LoadChatHistoryGeneral, pool, UpdateChatHistoryBySession, CreateNewChatSession, DeleteSection
+from .Chat_Sesson_Manage import AddUser, GetUserByUsername, LoadChatHistoryBySession, LoadChatHistoryGeneral, pool, UpdateChatHistoryBySession, CreateNewChatSession, DeleteSection
 from .HandleUser import create_access_token, create_refresh_token, SECRET_KEY, REFRESH_SECRET_KEY, ALGORITHM
 import io
 from passlib.context import CryptContext
@@ -74,7 +74,7 @@ class ChatMessage(BaseModel):
 
 class ChatPayloadFormat(BaseModel):
     session: str
-    user_id:str
+    
     metadata: Optional[dict] = {}
     message: List[ChatMessage]
     model: Optional[str] = "gpt-4o"
@@ -128,7 +128,7 @@ async def post_chat_respose(payload: ChatPayloadFormat,
     )
 
 @router.post("/GetChatSpeech")
-async def post_chat_speech(payload: SpeechRequestFormat):
+async def post_chat_speech(payload: SpeechRequestFormat, user_id = Depends(get_current_user)):
     text = payload.text
     voice = payload.voice
     speech_generator =  SpeechGenerate(text=text,voice = voice)
@@ -138,11 +138,8 @@ async def post_chat_speech(payload: SpeechRequestFormat):
 class ImagePromptFormat(BaseModel):
     prompt: str
 
-
-    
-
 @router.post("/PostDocumentContent")
-async def PostDocumentContent(file: UploadFile = File(...),session_id: str = Form(...)):
+async def PostDocumentContent(file: UploadFile = File(...),session_id: str = Form(...),user_id=Depends(get_current_user)):
     filename = file.filename
     extension = os.path.splitext(filename)[1].lower()
     tmp_path = None
@@ -179,7 +176,7 @@ async def get_system_setting():
 
 
 @router.post("/GetSpeechToText")
-async def get_speech_to_text(file:UploadFile = File(...), language:str = Form('en')):
+async def get_speech_to_text(file:UploadFile = File(...), language:str = Form('en'), user_id = Depends(get_current_user)):
     data = SpeechToText(file=file, language=language)
     return StreamingResponse(data, media_type="text/plain")
 
@@ -261,5 +258,22 @@ async def PostLogin(response: Response, payload: LoginSchema):
     response.set_cookie(key='refresh_token', value=refresh_token, httponly=True)
 
     return {"access_token":access_token, "username": user_data['username']}
+
+class SignUpSchema(BaseModel):
+    username:str
+    password:str
+    email: Optional[str]
+
+@router.post("/PostSignUp")
+async def PostSignUp(payload:SignUpSchema):
+    user_exists = await GetUserByUsername(payload.username)
+
+    if user_exists:
+        raise HTTPException(status_code=400, detail='Username existed')
+    
+    hass_password = pwd_context.hash(payload.password)
+    await AddUser(username=payload.username, password=hass_password, emaiL=payload.email)
+
+    return {"status":"success"}
 Api_App.include_router(router)
 
