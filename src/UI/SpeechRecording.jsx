@@ -1,6 +1,6 @@
 import {useState, useRef} from 'react'
 import { PostSpeechToText } from '../hooks/CallApi';
-export const RecordSpeech = (language = null) => {
+export const RecordSpeech = () => {
     const [SpeechText, setSpeechText] = useState("");
     const [IsListening, setIsListening] = useState(false);
 
@@ -13,7 +13,7 @@ export const RecordSpeech = (language = null) => {
     const SILENCE_THRESHOLD = 0.01;
     const SILENCE_DURATION = 2000;
 
-    const startListening = async() => {
+    const startListening = async(language) => {
         setSpeechText("");
         audioChunksRef.current = [];
 

@@ -26,7 +26,7 @@ PreDecision = OpenAI(
 tools = [Generate_Img_Tool, AnswearFromDoc,AnswearWeatherRelatedTopic, search_news_tools]
 
 
-async def get_chat_response(session:str,chatHistory:list, model: str = "gpt-4o", PersonaID = "Elysia",):
+async def get_chat_response(session:str,chatHistory:list, user_id:str, model: str = "gpt-4o", PersonaID = "Elysia", ):
     print(f"Chat current session: {session}")
     userMessage = chatHistory[-1].content
     print(userMessage)
@@ -35,7 +35,7 @@ async def get_chat_response(session:str,chatHistory:list, model: str = "gpt-4o",
     if isinstance(userMessage, list):
          context_string = next((item['text'] for item in userMessage if item.get('type') == 'text'),"" )
 
-    task_context =  asyncio.create_task(SearchContextDB(context_string))
+    task_context =  asyncio.create_task(SearchContextDB(query_text=context_string, user_id=user_id))
     context= await asyncio.gather(task_context)
     print(f"Context: {context} ")
     systemContent =  (
@@ -86,10 +86,10 @@ async def get_chat_response(session:str,chatHistory:list, model: str = "gpt-4o",
             print(f"Tools {first_tool.function.name}")
             args_prompt = args['prompt']
             if(first_tool.function.name == "AnswearFromDoc"):
-                async for chunk in AnswearDocument(prompt=userMessage, general_context= args_prompt, model=model, session = session):
+                async for chunk in AnswearDocument(prompt=userMessage, general_context= args_prompt, model=model, session = session, user_id=user_id):
                     yield chunk
             if(first_tool.function.name == Generate_Img_Tool["function"]["name"]):
-                async for chunk in Generate_img(prompt=args_prompt):
+                async for chunk in Generate_img(prompt=args_prompt, user_id=user_id):
                     yield f"__IMAGE__:{chunk}"
             if(first_tool.function.name == AnswearWeatherRelatedTopic["function"]["name"]):
                 async for chunk in ExtractWeatherData(prompt=args['prompt'], location= args['location'], date = args['date']):
@@ -101,9 +101,9 @@ async def get_chat_response(session:str,chatHistory:list, model: str = "gpt-4o",
     
     if fullresponse:
         print(f'Saved context {fullresponse}')
-        asyncio.create_task(save_chat_response(userMes=context_string, botRep=fullresponse, session=session))  
+        asyncio.create_task(save_chat_response(userMes=context_string, botRep=fullresponse, session=session, user_id=user_id))  
 
-async def save_chat_response(userMes:str, botRep:str, session:str):
+async def save_chat_response(userMes:str, botRep:str, session:str, user_id:str):
     system_prompt = (
         "You are a Memory Extractor. Extract information into a JSON object.\n"
         "STRICT JSON FORMAT:\n"
@@ -115,6 +115,7 @@ async def save_chat_response(userMes:str, botRep:str, session:str):
         '  "keywords": ["key1", "key2"]\n'
         "}\n"
         "Rules: Emotion scores must be floats between 0 and 1. Importance is an integer."
+        "Make the content "
     )
     ollmaclient = AsyncOpenAI(
         base_url="http://localhost:11434/v1", # Trỏ về Ollama local
@@ -141,7 +142,7 @@ async def save_chat_response(userMes:str, botRep:str, session:str):
     save_obj.chat_session = session
     print(save_obj)
     save_obj.timestamp = datetime.now().isoformat()
-    await SaveMemoryToVectorDB(save_obj)
+    await SaveMemoryToVectorDB(save_obj, user_id=user_id, session_id=session)
     print("Đã save nha xếp")
 
 

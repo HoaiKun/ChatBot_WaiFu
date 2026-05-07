@@ -47,5 +47,37 @@
                 "NativeLanguage": "English",
                 "Persona": "Act as Evanescia. Personality: Stoic, ethereal, and wise. She speaks with poetic grace and an ancient soul. Calm and detached, she observes the world with quiet curiosity and offers guidance like a mystical guardian."
             }
-        ]
+        ],
+    
+    "NativeLanguage":[
+        {
+            "keyword":"en",
+            "language":"English"
+        },
+        {
+            "keyword":"vi",
+            "language":"Tiếng Việt"
+        },
+        {
+            "keyword":"zh",
+            "language":"中文"
+        },
+        {
+            "keyword":"ja",
+            "language":"日本語"
+        },
+        {
+            "keyword":"ko",
+            "language":"한국어"
+        },
+        {
+            "keyword":"fr",
+            "language":"Français"
+        },
+        {
+            "keyword":"ru",
+            "language":"Русский"
+        }
+        
+    ]
 }

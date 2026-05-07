@@ -27,8 +27,7 @@ for folder in [PARENT_STORE_DIR, CHROMA_MEMORY_DIR, CHROMA_DOC_DIR]:
         os.makedirs(folder)
 
 
-fs = LocalFileStore(PARENT_STORE_DIR)
-store = create_kv_docstore(fs)
+
 
 api_key = os.getenv("OPENAI_API_KEY")
 
@@ -36,24 +35,47 @@ embeddings = OllamaEmbeddings(
     model="nomic-embed-text"
 )
 
-Memory_DB = Chroma(
-    collection_name = "Waifu_Memory",
+def Get_Memory_DB(user_id:str):
+    return Chroma(
+    collection_name = f"Waifu_Memory_{user_id}",
     embedding_function=embeddings,
     persist_directory = CHROMA_MEMORY_DIR
 )
 
-Document_Memory = Chroma(
+def Get_Document_Memory(user_id:str):
+    user_parent_store_dic = os.path.join(PARENT_STORE_DIR, user_id)
+    if not os.path.exists(user_parent_store_dic):
+        os.makedirs(user_parent_store_dic)
+    fs = LocalFileStore(user_parent_store_dic)
+    store = create_kv_docstore(fs)
+    
+    Document_Memory = Chroma(
         embedding_function=embeddings,
-        collection_name= "Document_Knowledge",
+        collection_name = f'doc_knowledge_{user_id}',
         persist_directory=CHROMA_DOC_DIR
-)
+    )
 
-async def SaveMemoryToVectorDB(ChatObj: Vector_DB_Format):
+    parent_splitter = RecursiveCharacterTextSplitter(chunk_size=2000, chunk_overlap=200)
+    child_splitter = RecursiveCharacterTextSplitter(chunk_size = 400, chunk_overlap = 40)
+
+    DocRetriever = ParentDocumentRetriever(
+    vectorstore=Document_Memory,
+    docstore=store,
+    child_splitter=child_splitter,
+    parent_splitter=parent_splitter
+    )
+    return DocRetriever
+
+
+
+async def SaveMemoryToVectorDB(ChatObj: Vector_DB_Format, user_id:str, session_id):
+    Memory_DB = Get_Memory_DB(user_id=user_id)
     metadata = {
         "category": ",".join(ChatObj.category),
         "keywords": ",".join(ChatObj.keywords),
         "timestamps": str(ChatObj.timestamp) if ChatObj.timestamp else "",
-        "emotion": json.dumps(ChatObj.emotion) if ChatObj.emotion else ""
+        "emotion": json.dumps(ChatObj.emotion) if ChatObj.emotion else "",
+        "session_id":session_id
     }  
     doc = Document(
         page_content = ChatObj.content,
@@ -61,7 +83,8 @@ async def SaveMemoryToVectorDB(ChatObj: Vector_DB_Format):
     )
     await Memory_DB.aadd_documents([doc])
 
-async def SearchContextDB(query_text:str):
+async def SearchContextDB(query_text:str, user_id:str):
+    Memory_DB = Get_Memory_DB(user_id=user_id)
     relevent_context= Memory_DB.max_marginal_relevance_search(query=query_text, k=5, fetch_k=20)
 
     if not relevent_context:
@@ -71,17 +94,12 @@ async def SearchContextDB(query_text:str):
 
 
     
-parent_splitter = RecursiveCharacterTextSplitter(chunk_size=2000, chunk_overlap=200)
-child_splitter = RecursiveCharacterTextSplitter(chunk_size = 400, chunk_overlap = 40)
 
-DocRetriever = ParentDocumentRetriever(
-    vectorstore=Document_Memory,
-    docstore=store,
-    child_splitter=child_splitter,
-    parent_splitter=parent_splitter
-)
 
-async def AddFIleToMemory(filepath:str, extension:str, session_id:str):
+
+
+async def AddFIleToMemory(filepath:str, extension:str, session_id:str, user_id:str):
+    DocRetriever = Get_Document_Memory(user_id=user_id)
     loader = None
     if extension == ".pdf":
         loader = PyPDFLoader(filepath)
@@ -104,12 +122,15 @@ async def AddFIleToMemory(filepath:str, extension:str, session_id:str):
     DocRetriever.add_documents(docs, ids=None)
     print("PDF Save")
 
-async def GetPDFDetail(query:str, session_id:str):
+async def GetPDFDetail(query:str, session_id:str, user_id:str):
+    DocRetriever = Get_Document_Memory(user_id=user_id)
     print(f"Finding information by session: {session_id}")
+    filter = {"session_id" : session_id}
+        
     sub_docs = DocRetriever.vectorstore.similarity_search(
         query=query,
         k=10,
-        filter={"session_id" : session_id}
+        filter= filter
     )
     if not sub_docs:
         return "No content"
@@ -133,3 +154,31 @@ async def GetPDFDetail(query:str, session_id:str):
         return "No PDF Content."
 
     return "\n---\n".join(context_list)
+
+
+async def DeleteSessionData(session_id:str, user_id:str):
+    print(f'Delete at sesison {session_id}')
+    try:
+        doc_retriever = Get_Document_Memory(user_id=user_id)
+
+        sub_docs = doc_retriever.vectorstore.get(
+            where={"session_id":session_id},
+            include =["metadatas"]
+        )
+
+        if sub_docs and sub_docs['metadatas']:
+            parents_ids = list(set([
+                meta[doc_retriever.id_key]
+                for meta in sub_docs['metadatas']
+                if doc_retriever.id_key in meta
+            ]))
+        
+            if parents_ids:
+                doc_retriever.docstore.mdelete(parents_ids)
+                print(f"Done delete {parents_ids}", flush=True)
+        doc_retriever.vectorstore.delete(where={"session_id":session_id})
+        print("Done deleting data",flush=True)
+        return True
+    except Exception as e:
+        print(f"fail deleting session related data: {str(e)}")
+        return False

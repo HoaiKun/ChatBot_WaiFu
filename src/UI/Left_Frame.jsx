@@ -1,6 +1,6 @@
 import React, { useState, useRef,  useContext, useEffect } from  'react';
 import ChatFrame from './ChatFrame';
-import { GetChatResponse, PostDocResponse, GetImageGenerate, GetSpeechResponse, translateToNativeLanguage, GetSystemSetting, GetChatSessionDetail, CreateNewChatSession } from '../hooks/CallApi';
+import { GetChatResponse, PostDocResponse, GetSpeechResponse, translateToNativeLanguage, GetSystemSetting, GetChatSessionDetail, CreateNewChatSession } from '../hooks/CallApi';
 import { RecordSpeech } from './SpeechRecording';
 import { ChatContext } from './ChatContext';
 import { useAuth } from './AuthContext';
@@ -48,7 +48,9 @@ const ChatBox = () => {
     const CurrentChatSession = useRef();
     const CurrentUserMessage = useRef('');
     const {ChatSession, setChatSession} = useContext(ChatContext);
+    const [TranslationBox, setTranslationBox] = useState(false);
     let IsCreatedNewSession = useRef(false);
+    const [NativeLanguage, setNativeLanguage] = useState({"keyword":"None","language":"Your Language"});
     CurrentChatSession.current = ChatSession;
     useEffect(() => {
         const initSetting = async() => {
@@ -94,12 +96,13 @@ const ChatBox = () => {
     
     let ChatModelList = SystemSetting?.ChatModelList;
     let PersonaSetting = SystemSetting?.PersonaSetting;
-
+    let LanguageList = SystemSetting?.NativeLanguage;
+    LanguageList = [{"keyword":"None","language":"No Translate"},...LanguageList  || []];
     useEffect(() => {
 
         if(IsListening)
         {
-            startListening();
+            startListening(NativeLanguage.keyword);
             
         }
         else
@@ -313,8 +316,10 @@ const ChatBox = () => {
                         sentence = sentence.slice(sentence_end_index+1);
                         if(completedSetence.length > 0)
                         {
+                            if(NativeLanguage.keyword != 'None')
+                            {
                                 const CurrentIndex = translationCount++;
-                                translateToNativeLanguage(completedSetence).then(translatedText => {
+                                translateToNativeLanguage(completedSetence, NativeLanguage.keyword).then(translatedText => {
                                     if(translatedText)
                                     {
                                         const lastChar = rawSengment.charAt(rawSengment.length-1);
@@ -334,18 +339,21 @@ const ChatBox = () => {
                                         });
                                     }
                                 });
+
+                            }
                                 
-                                if(VoiceModel.Name != "No Voice" && !chunk.startsWith("__IMAGE__:"))
+                                
+                            if(VoiceModel.Name != "No Voice" && !chunk.startsWith("__IMAGE__:"))
+                            {
+                                speechBuffer += completedSetence;
+                                if(speechBuffer.length >=30)
                                 {
-                                    speechBuffer += completedSetence;
-                                    if(speechBuffer.length >=30)
-                                    {
-                                        const speechPromise = GetSpeechResponse(speechBuffer.trim(), VoiceModel.Url);
-                                        audioQueue.current.push(speechPromise);
-                                        startTalking();
-                                        speechBuffer = "";
-                                    }  
-                                }
+                                    const speechPromise = GetSpeechResponse(speechBuffer.trim(), VoiceModel.Url);
+                                    audioQueue.current.push(speechPromise);
+                                    startTalking();
+                                    speechBuffer = "";
+                                }  
+                            }
                         }
                         
                     }
@@ -737,7 +745,7 @@ const ChatBox = () => {
                     <div>
                         <button className='hover:bg-pink-500 transition-colors shadow-2xl m-2 ml-5 mt-0 p-2 bg-pink-200 w-[10dvh] rounded-2xl' onClick={() => setIsBoxOpened(!IsBoxOpened)}>{VoiceModel?.Name}</button>    
                         {IsBoxOpened && (
-                            <ul className=' rounded-2xl absolute z-10 w-[10dvh] items-center max-h-60 bg-gray-900  overflow-auto'>
+                            <ul className='bottom-full mb-2 rounded-2xl absolute z-10 w-[10dvh] items-center max-h-60 bg-gray-900  overflow-auto'>
                                 {
                                     VoiceList.map((VoiceObj, i) => (
                                         <li key = {i} className='relative p-2  bg-gray-600 text-white hover:bg-gray-800'  onClick={() => {setIsBoxOpened(!IsBoxOpened); setVoiceModel(VoiceObj); VoiceObj.Name != "No Voice" ?  setOutlineColor("border-pink-200") : setOutlineColor("border-white");}}>{VoiceObj.Name}</li>
@@ -747,11 +755,11 @@ const ChatBox = () => {
                         )} 
                     </div>
                      <div>
-                        <button className='hover:bg-pink-500 transition-colors shadow-2xl m-2 ml-5 mt-0 p-2 bg-pink-200 w-[10dvh] rounded-2xl' onClick={() => setIsPersonaIDOpen(!IsPersonaIDOpen)}>{PersonaID}</button>   
+                        <button className='hover:bg-violet-500 transition-colors shadow-2xl m-2 ml-5 mt-0 p-2 bg-violet-200 w-[10dvh] rounded-2xl' onClick={() => setIsPersonaIDOpen(!IsPersonaIDOpen)}>{PersonaID}</button>   
                         {
                             IsPersonaIDOpen &&
                             (
-                                <ul className=' rounded-2xl absolute z-10 w-[10dvh] items-center max-h-60 bg-gray-900  overflow-auto'>
+                                <ul className='bottom-full mb-2 rounded-2xl absolute z-10 w-[10dvh] items-center max-h-60 bg-gray-900  overflow-auto'>
                                     {
                                         PersonaSetting.map((persona, i) => (
                                             <li key = {i} className='relative p-2  bg-gray-600 text-white hover:bg-gray-800'  onClick={() => {setPersonaID(persona.Id); setIsPersonaIDOpen(!IsPersonaIDOpen)}}>{persona.Id}</li>
@@ -768,10 +776,26 @@ const ChatBox = () => {
                         {
                             IsChatModelBoxOpened &&
                             (
-                                <ul className=' rounded-2xl absolute z-10 w-[10dvh] items-center max-h-60 bg-gray-900  overflow-auto'>
+                                <ul className='bottom-full mb-2 rounded-2xl absolute z-10 w-[10dvh] items-center max-h-60 bg-gray-900  overflow-auto'>
                                     {
                                         ChatModelList.map((tools, i) => (
                                             <li key = {i} className='relative p-2  bg-gray-600 text-white hover:bg-gray-800'  onClick={() => {setChatModel(tools.Name); setIsChatModelBoxOpened(!IsChatModelBoxOpened)}}>{tools.Name}</li>
+                                        ))
+                                    }
+                             </ul>
+                            )
+                        }
+                       
+                    </div>
+                    <div>
+                        <button className='hover:bg-cyan-500 transition-colors shadow-2xl m-2 ml-5 mt-0 p-2 bg-cyan-200 w-[10dvh] rounded-2xl' onClick={() => setTranslationBox(!TranslationBox)}>{NativeLanguage.language}</button>   
+                        {
+                            TranslationBox &&
+                            (
+                                <ul className=' bottom-full mb-2 rounded-2xl absolute z-10 w-[10dvh] items-center max-h-60 bg-gray-900  overflow-auto'>
+                                    {
+                                        LanguageList.map((tools, i) => (
+                                            <li key = {i} className='relative p-2  bg-gray-600 text-white hover:bg-gray-800'  onClick={() => {setNativeLanguage(tools); setTranslationBox(!TranslationBox)}}>{tools.language}</li>
                                         ))
                                     }
                              </ul>

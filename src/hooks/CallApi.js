@@ -44,27 +44,12 @@ export const GetChatResponse = async(session = '9f206986-d00e-4866-bff6-3023a316
     return response.body.getReader();
 };
 
-export const GetImageGenerate = async(user_prompt) => {
-    const token = GetToken();
-    const payload = {
-        prompt: user_prompt
-    }
-    const resposne = await fetch("http://localhost:8000/api/v1/GenerateIMG", 
-    {
-        method:"POST",
-        headers: {"Content-Type":"application/json",
-            "Authorization": `Bearer ${token}`
-        },
-        body: JSON.stringify(payload)
-    })
-    if(!resposne.ok) throw new Error("Error getting Image_generated");
-    const result = resposne.json();
-    return result;
-};
+
 
 export const PostDocResponse = async(document) => {
     
     const token = GetToken();
+    console.log(document);
     const response = await fetch("http://localhost:8000/api/v1/PostDocumentContent",
         {
             method:"POST",
@@ -104,6 +89,7 @@ export const GetSystemSetting = async() => {
             }
         );
         const data = await response.json();
+        console.log("SystemSetting" + data);
         return data;
     }
     catch (err)

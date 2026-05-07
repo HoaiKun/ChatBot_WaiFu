@@ -5,7 +5,7 @@ import os
 
 model_size = "small"
 model = WhisperModel(model_size, device="cuda", compute_type = "float16")
-async def SpeechToText(file, language = 'vi'):
+async def SpeechToText(file, language = 'None'):
     temp_file_path = f"temp_{file.filename}"
     try:
         

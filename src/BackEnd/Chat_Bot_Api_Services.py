@@ -11,7 +11,7 @@ from .Fish_TTS import SpeechGenerate
 from fastapi.staticfiles import StaticFiles;
 from .Image_Generate import Generate_Img_Tool, Generate_img
 from .PromptFormat import Image_Generation_Prompt_Format
-from .Chroma_DB import AddFIleToMemory
+from .Chroma_DB import AddFIleToMemory,DeleteSessionData
 from .SpeechToText import SpeechToText
 from .Chat_Sesson_Manage import AddUser, GetUserByUsername, LoadChatHistoryBySession, LoadChatHistoryGeneral, pool, UpdateChatHistoryBySession, CreateNewChatSession, DeleteSection
 from .HandleUser import create_access_token, create_refresh_token, SECRET_KEY, REFRESH_SECRET_KEY, ALGORITHM
@@ -111,7 +111,7 @@ async def post_chat_respose(payload: ChatPayloadFormat,
                                metadata=payload.metadata)
     async def stream_and_collect():
         full_response = ""
-        async for chunks in  get_chat_response(session=payload.session,chatHistory=chatHistory, model=target_model, PersonaID=PersonaID):
+        async for chunks in  get_chat_response(session=payload.session,chatHistory=chatHistory, model=target_model, PersonaID=PersonaID, user_id=user_id):
             full_response+=chunks
             yield chunks
 
@@ -140,6 +140,7 @@ class ImagePromptFormat(BaseModel):
 
 @router.post("/PostDocumentContent")
 async def PostDocumentContent(file: UploadFile = File(...),session_id: str = Form(...),user_id=Depends(get_current_user)):
+    print(f"Save document by session: {session_id}")
     filename = file.filename
     extension = os.path.splitext(filename)[1].lower()
     tmp_path = None
@@ -150,7 +151,7 @@ async def PostDocumentContent(file: UploadFile = File(...),session_id: str = For
         shutil.copyfileobj(file.file, tmp)
         tmp_path = tmp.name
     try:
-        await AddFIleToMemory(filepath=tmp_path, extension=extension, session_id=session_id)
+        await AddFIleToMemory(filepath=tmp_path, extension=extension, session_id=session_id, user_id=user_id)
         return {"role": "assistant", "content":"Loaded file"}
     except:
         return {"role":"assistant", "content": f"__MESSAGE__:Working on {file.filename}"}
@@ -159,11 +160,6 @@ async def PostDocumentContent(file: UploadFile = File(...),session_id: str = For
             os.remove(tmp_path)
         await file.close()
 
-@router.post("/GenerateIMG")
-async def post_image_generate(prompt:ImagePromptFormat, user_id = Depends(get_current_user)):
-    BasicPrompt = Image_Generation_Prompt_Format(prompt=prompt.prompt)
-    result = await Generate_img(prompt=BasicPrompt, user_id=user_id)
-    return {"role": "assistant", "content" : f"__IMAGE__{result}"}
 
 @router.get("/GetSystemSetting")
 async def get_system_setting():
@@ -176,7 +172,7 @@ async def get_system_setting():
 
 
 @router.post("/GetSpeechToText")
-async def get_speech_to_text(file:UploadFile = File(...), language:str = Form('en'), user_id = Depends(get_current_user)):
+async def get_speech_to_text(file:UploadFile = File(...), language:str = Form('None'), user_id = Depends(get_current_user)):
     data = SpeechToText(file=file, language=language)
     return StreamingResponse(data, media_type="text/plain")
 
@@ -201,7 +197,12 @@ class DeleteSessionPayload(BaseModel):
     session_id :str
     
 @router.post('/DeleteChatSession')
-async def PostDeleteChatSession(obj:DeleteSessionPayload , user_id : str = Depends(get_current_user)):
+async def PostDeleteChatSession(obj:DeleteSessionPayload,back_task:BackgroundTasks, 
+                                user_id : str = Depends(get_current_user)):
+    print(f'Deleting data at session: {obj.session_id}')
+    back_task.add_task(
+        DeleteSessionData, obj.session_id, user_id
+    )
     return await DeleteSection(session=obj.session_id, user_id=user_id)
 
 class LoginSchema(BaseModel):
