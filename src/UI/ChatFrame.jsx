@@ -25,7 +25,7 @@ const ChatFrame = ({frame_id,role,message, translate}) =>{
         }
     }
     return (
-        <div className={`m-2 pt-2 pb-2 pl-2 pr-2 max-w-[75%] w-fit h-fit p-5px flex-col bg-black/50 hover:bg-black border-black rounded-2xl 
+        <div className={`m-2 pt-2 pb-2 pl-2 pr-2 max-w-[75%] w-fit h-fit p-5px flex-col transition-all bg-black/50 hover:bg-black border-black rounded-2xl 
         ${isUser ? 'ml-auto' : 'mr-auto'}
         `}>
             {isImage ?

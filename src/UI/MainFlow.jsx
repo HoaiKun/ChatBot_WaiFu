@@ -8,10 +8,19 @@ import { useAuth } from "./AuthContext";
 
 
 const MainFlow = () => {
+
+    
+
     let {user, token, setToken, login, logout} = useAuth();
     const [IsChecking, setIsChecking] = useState(true);
 
-    
+    useEffect(() => {
+        if(!token) return;
+        const heartBeat = setInterval(() => {
+            api.get('/check-auth').catch(() => {});
+        },14*60*1000);
+        return () => clearInterval(heartBeat);
+    }, [token]);
 
     useEffect(() => {
         const verifyToken = async() =>{
@@ -25,7 +34,7 @@ const MainFlow = () => {
             {
                 console.log('Login session ended');
                 setToken(null);
-                localStorage.removeItem('waifu-token');
+                localStorage.removeItem('waifu_token');
             }
             finally
             {

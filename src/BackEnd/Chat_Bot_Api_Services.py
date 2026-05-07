@@ -217,7 +217,7 @@ class RegisterSchema(BaseModel):
 @router.post("/PostRefreshLogin")
 async def RefreshLoginToken(login_data:Request):
     refresh_token =  login_data.cookies.get("refresh_token")
-
+    print("PROCESSING NEW TOKEN")
     if not refresh_token:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -235,7 +235,7 @@ async def RefreshLoginToken(login_data:Request):
             raise HTTPException(status_code=401, detail='Token cotaint trash data')
 
         new_access_token = create_access_token(data={"sub":user_id})
-
+        print("GOT NEW TOKEN")
         return {"access_token" : new_access_token}
     
     except jwt.ExpiredSignatureError:
@@ -276,5 +276,10 @@ async def PostSignUp(payload:SignUpSchema):
     await AddUser(username=payload.username, password=hass_password, emaiL=payload.email)
 
     return {"status":"success"}
+
+@router.get("/check_auth")
+async def checkauth():
+    return {"status":"active"}
+
 Api_App.include_router(router)
 

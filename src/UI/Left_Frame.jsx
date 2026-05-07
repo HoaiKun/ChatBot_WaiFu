@@ -286,6 +286,7 @@ const ChatBox = () => {
             setChatHistory(prev => [...prev, AssistantMessageObj]);
             let translationArray= [];
             let translationCount = 0;
+            let first_sentence = true;
             while(true){
                 const {done, value} = await reader.read();
                 if(done) break;
@@ -346,9 +347,10 @@ const ChatBox = () => {
                             if(VoiceModel.Name != "No Voice" && !chunk.startsWith("__IMAGE__:"))
                             {
                                 speechBuffer += completedSetence;
-                                if(speechBuffer.length >=30)
+                                if(speechBuffer.length >= (first_sentence ? 20 : 100))
                                 {
                                     const speechPromise = GetSpeechResponse(speechBuffer.trim(), VoiceModel.Url);
+                                    first_sentence = false;
                                     audioQueue.current.push(speechPromise);
                                     startTalking();
                                     speechBuffer = "";
@@ -636,10 +638,9 @@ const ChatBox = () => {
                     catch{
                         console.log("Cant send file");
                     }
-                    setAttachedFile(null);
-                    
                     
                 }
+                setAttachedFile(null);
             }
            
             let AssistantMessageObj = {

@@ -1,5 +1,6 @@
 import { pass } from "three/src/nodes/display/PassNode.js";
 import { useAuth } from "../UI/AuthContext";
+import api from "./api";
 const GetToken = () => localStorage.getItem("waifu_token");
 export const GetSpeechResponse = async(text, voice = "679de93ad4634728900347063142e930") => {
    const token = GetToken();
@@ -41,6 +42,10 @@ export const GetChatResponse = async(session = '9f206986-d00e-4866-bff6-3023a316
         }
     );
     if(!response.ok) throw new Error("Error getting chat done");
+    if(response.status == 401)
+    {
+
+    }
     return response.body.getReader();
 };
 
