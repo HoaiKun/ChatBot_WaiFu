@@ -10,13 +10,13 @@
 
     "ChatModelList" : [
             {
-                "Id":0, "Name": "gpt-4o"
+                "Id":0, "Name": "openai/gpt-oss-20b"
             },
             {
-                "Id":1, "Name": "gpt-4o-mini"
+                "Id":1, "Name": "openai/gpt-oss-120b"
             },
             {
-                "Id":2, "Name": "gpt-5.4-mini"
+                "Id":2, "Name": "llama-3.3-70b-versatile"
             }
 
         ],

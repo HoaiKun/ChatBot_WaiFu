@@ -15,7 +15,7 @@ const ChatBox = () => {
     const [SelectedTools, SetSelectedTools] = useState("No Tools");
     const [OutlineRingColor, setOutlineRingColor] = useState("ring-white");
     const [PasteImage, setPasteImage] = useState("");
-    const [ChatModel, setChatModel] = useState("gpt-4o");
+    const [ChatModel, setChatModel] = useState("openai/gpt-oss-20b");
     const [IsChatModelBoxOpened, setIsChatModelBoxOpened] = useState(false);
     let ImageGeneratedChosen = useRef(false);
     const [IsUITrasparent, setIsUITransparent] = useState(false);
@@ -323,8 +323,9 @@ const ChatBox = () => {
                                 translateToNativeLanguage(completedSetence, NativeLanguage.keyword).then(translatedText => {
                                     if(translatedText)
                                     {
-                                        const lastChar = rawSengment.charAt(rawSengment.length-1);
-                                        const suffix = (lastChar === '\n') ? '\n' : (lastChar===' ' ? ' ' : '');
+                                        
+                                        const whitespaceMatch = rawSengment.match(/\s+$/);
+                                        const suffix = whitespaceMatch ? whitespaceMatch[0] : "";
                                         translationArray[CurrentIndex] = translatedText+ " " +suffix;
                                         const orderedTranslation = translationArray.join("");
                                         setChatHistory(prev => {
@@ -773,7 +774,7 @@ const ChatBox = () => {
                         
                     </div>
                     <div>
-                        <button className='hover:bg-yellow-500 transition-colors shadow-2xl m-2 ml-5 mt-0 p-2 bg-yellow-200 w-[10dvh] rounded-2xl' onClick={() => setIsChatModelBoxOpened(!IsChatModelBoxOpened)}>{ChatModel}</button>   
+                        <button className='hover:bg-yellow-500 transition-colors shadow-2xl m-2 ml-5 mt-0 p-2 bg-yellow-200 w-[15dvh] rounded-2xl' onClick={() => setIsChatModelBoxOpened(!IsChatModelBoxOpened)}>{ChatModel}</button>   
                         {
                             IsChatModelBoxOpened &&
                             (

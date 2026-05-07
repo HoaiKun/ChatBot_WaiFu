@@ -7,20 +7,23 @@ import os
 import uuid
 import inspect
 from pydantic import TypeAdapter
-
+pipeline = StableDiffusionPipeline.from_pretrained(
+    "Meina/MeinaMix_V11", 
+    torch_dtype = torch.float16 ,
+    use_safetensors = True
+    )
 
 async def Generate_img(prompt: str, user_id:str) -> str:
+    """
+    This is generate image function, use when user need to create image
+    """
     if not os.path.exists("Generated_image"):
         os.makedirs("Generated_image")
 
     
 
 
-    pipeline = StableDiffusionPipeline.from_pretrained(
-    "Meina/MeinaMix_V11", 
-    torch_dtype = torch.float16 ,
-    use_safetensors = True
-    )
+    
 
     pipeline.scheduler = DPMSolverMultistepScheduler.from_config(
         pipeline.scheduler.config,

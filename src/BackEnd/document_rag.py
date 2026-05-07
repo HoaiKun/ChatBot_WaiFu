@@ -38,12 +38,16 @@ async def AnswearDocument(prompt: str, general_context:str, model: str, session:
         Use when user require extract information from doc
         Your mission is from user prompt, decide what data should be query from document by converting prompt into general_context, and answear user question
     """
-    Client = AsyncOpenAI(api_key=os.getenv("OPENAI_API_KEY")) 
+    client = AsyncOpenAI(
+        base_url="https://api.groq.com/openai/v1", # Trỏ về Ollama local
+        api_key=os.getenv("GROQ_API_KEY"),
+    )
     general_data = await GetExternalDataFromDocument(prompt=general_context, session=session, user_id=user_id)
     print(f"General data at session {session}")
-    async with Client.beta.chat.completions.stream(
+    response =  client.chat.completions.create(
         model=model,
         temperature=0.6,
+        stream=True,
         messages=[
             {
                 "role":"system",
@@ -55,20 +59,14 @@ async def AnswearDocument(prompt: str, general_context:str, model: str, session:
             }
 
         ]
-    ) as response:
+    ) 
     
-        print(general_data)
-        fulltext = ""
-        async for event in response:
-                
-                if event.type == 'content.delta':
-                    chunk = event.delta
-                    if not chunk: continue
-                    fulltext += chunk
-                    try:
-                        yield chunk
-                    except:
-                        yield "Error"
+    print(general_data)
+    fulltext = ""
+    async for chunk in response:
+        content = chunk.choices[0].delta.content
+        if content:
+            yield content
 
 AnswearFromDoc ={
     "type":"function",

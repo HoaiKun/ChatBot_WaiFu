@@ -17,8 +17,9 @@ const MainFlow = () => {
     useEffect(() => {
         if(!token) return;
         const heartBeat = setInterval(() => {
-            api.get('/check-auth').catch(() => {});
-        },14*60*1000);
+            console.log("RERESHING TOKEN");
+            api.get('/check_auth').catch(() => {});
+        },12*60*1000);
         return () => clearInterval(heartBeat);
     }, [token]);
 
