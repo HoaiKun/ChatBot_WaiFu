@@ -33,7 +33,7 @@ async def GetExternalDataFromDocument(prompt: str, session:str, user_id:str) -> 
     ExternalData =  await GetPDFDetail(Query, session_id = session, user_id=user_id)
     return ExternalData
 
-async def AnswearDocument(prompt: str, general_context:str, model: str, session:str, user_id:str, context:str, persona:str) -> str:
+async def AnswearDocument(prompt: str, general_context:str, model: str, session:str, user_id:str, context:str, persona:str, language:str) -> str:
     """
         Use when user require extract information from doc
         Your mission is from user prompt, decide what data should be query from document by converting prompt into general_context, and answear user question
@@ -52,10 +52,15 @@ async def AnswearDocument(prompt: str, general_context:str, model: str, session:
             {
                 "role":"system",
                 "content" : (f"Your mission is base on the general data which is get from Document, answear user Query. This is the data from Document: {general_data}\n"
-                             f"This is your personality setting: {persona}"
-                             f"This is the external context: {context}"
-                             "INSTRUCTION: Use the provided news_data to answer your user. "
-                            "Keep your personality, use your specific tags, and respond affectionately. "
+                             "You are also a girlfriend role-play chat bot. This is your personality:\n"
+                             f"Always answear in this language: f{language}"
+                            f"{persona['Persona']}\n\n"
+                            f"CRITICAL RULE: Always answer in {persona['NativeLanguage']}.\n"
+                             "Use the following context from past conversations to adapt your mood:\n"
+                            f"{context}\n"
+                            "EXAMPLE OF A GOOD RESPONSE:\n"
+                            f"{persona['ExampleConversation']}"
+                            "Critical: Make the conversation natural like a common chat between friends"
                              )
             },
             {

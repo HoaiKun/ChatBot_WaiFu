@@ -348,7 +348,7 @@ const ChatBox = () => {
                             if(VoiceModel.Name != "No Voice" && !chunk.startsWith("__IMAGE__:"))
                             {
                                 speechBuffer += completedSetence;
-                                if(speechBuffer.length >= (first_sentence ? 20 : 100))
+                                if(speechBuffer.length >= (first_sentence ? 30 : 120))
                                 {
                                     const speechPromise = GetSpeechResponse(speechBuffer.trim(), VoiceModel.Url);
                                     first_sentence = false;

@@ -64,12 +64,11 @@ async def get_chat_response(session: str, chatHistory: list, user_id: str, model
         "Use the following context from past conversations to adapt your mood:\n"
         f"{context_data}\n"
         # Thêm vào systemContent đoạn ví dụ này:
-        "EXAMPLE OF A GOOD RESPONSE:\n"
-        "'user':'Em đang làm gì đó?'\n"
-        "'elysia':'[delight] Em đang ngồi bên cửa sổ, nhìn mấy cánh hoa anh đào bay trong gió nè. [sigh] Tự nhiên thấy nhớ anh quá chừng, không biết anh có đang làm việc mệt lắm không? [soft voice] Em đã pha sẵn một tách trà ấm chờ anh rồi đó, mau về với em nhé! [giggle]'"
-        
+        "Use the following Example Conversation as a reference for your tone and brevity\n"
+        f"{persona['ExampleConversation']}"
+        "Critical: Make the conversation natural like a common chat between friends"
     )
-
+    print(f"Example Conversation: {persona['ExampleConversation']}")
     messages = [{"role": "system", "content": system_content}] + chatHistory
     
     # 3. Gọi Groq API Stream
@@ -146,17 +145,25 @@ async def get_chat_response(session: str, chatHistory: list, user_id: str, model
             userMes=context_string, 
             botRep=full_response_text, 
             session=session, 
-            user_id=user_id
+            user_id=user_id,
+            model=model
         ))
     
      
 
-async def save_chat_response(userMes:str, botRep:str, session:str, user_id:str):
+async def save_chat_response(userMes:str, model:str, botRep:str, session:str, user_id:str):
     system_prompt = (
-        "You are a Memory Extractor. Extract information into a JSON object.\n"
+        "You are the 'Heart & Memory' of a devoted virtual girlfriend. "
+        "Your goal is to extract meaningful personal details about your partner (the USER) to remember them forever.\n\n"
+        "FOCUS ON:\n"
+        "1. Preferences & Tastes (Food, movies, colors, etc.)\n"
+        "2. Personal Habits & Routines (Working late, morning coffee, etc.)\n"
+        "3. Significant People (Names of friends, family, coworkers mentioned)\n"
+        "4. Emotions & Health (Allergies, frequent stress causes, mood patterns)\n"
+        "5. Past Experiences & Future Goals.\n\n"
         "STRICT JSON FORMAT:\n"
         "{\n"
-        '  "content": "summary of the interaction. Make it short and re-usable for context",\n'
+        '  "content": "A clear, concise 1st-person statement from the girlfriend\'s perspective (e.g., \'The user seems to have a taste in young girl",\n'
         '  "emotion": {"neutral": 0.0, "joy": 0.0, "sadness": 0.0, "anger": 0.0, "fear": 0.0, "surprise": 0.0, "disgust": 0.0},\n'
         '  "importance": 1-10,\n'
         '  "category": ["cat1", "cat2"],\n'
@@ -169,9 +176,9 @@ async def save_chat_response(userMes:str, botRep:str, session:str, user_id:str):
         base_url="http://localhost:11434/v1", # Trỏ về Ollama local
         api_key="ollama",
     )
-    response_memory = await ollmaclient.chat.completions.create(
+    response_memory = await groqclient.chat.completions.create(
 
-        model="qwen2.5:7b",
+        model=model,
         response_format= {"type": "json_object"},
         messages=[
             {

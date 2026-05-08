@@ -42,7 +42,10 @@ async def handle_search_news(prompt:str, model:str, news_data:str, context:str, 
                         f"{persona['Persona']}\n\n"
                         f"CRITICAL RULE: Always answer in {persona['NativeLanguage']}.\n"
                         "Use the following context from past conversations to adapt your mood:\n"
-                        f"{context}\n" )
+                        f"{context}\n" 
+                        "Use the following Example Conversation as a reference for your tone and brevity\n"
+                        f"{persona['ExampleConversation']}"
+                        "Critical: Make the conversation natural like a common chat between friends")
                     
 
     response = await groq_client.chat.completions.create(
