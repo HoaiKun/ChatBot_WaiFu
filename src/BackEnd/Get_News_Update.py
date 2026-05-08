@@ -6,65 +6,69 @@ from dotenv import load_dotenv
 from pydantic import TypeAdapter
 from openai import AsyncOpenAI
 import inspect
+from duckduckgo_search import DDGS
 load_dotenv()
-async def search_news(prompt: str,) -> str: 
+groq_key = os.getenv("GROQ_API_KEY")
+groq_client = AsyncOpenAI(
+    api_key= groq_key,
+    base_url="https://api.groq.com/openai/v1"
+)         
+
+async def search_news(prompt:str, region:str = 'vn-vi', timelimit:str = 'd', max_results:int =5):
     """
-        This is the tools for searching news when user require additional information outside of
-        memory or from the internet, recent news etc
+    Search for the latest news on the internet to answer user questions about current events.
     """
-  
-    url = "https://api.tavily.com/search"
-    payload = {
-        "api_key": os.getenv("TAVILY_API_KEY"),
-        "query": prompt,
-        "search_depth": "basic",
-        "include_answer": False,
-        "max_results" : 3
-    }
+    with DDGS() as ddg:
+        results = ddg.news(
+            keywords=prompt,
+            region=region,
+            safesearch='moderate',
+            timelimit=timelimit,
+            max_results=max_results
+        )
+    news_data = ""
+    for item in results:
+        news_data += f"Topic: {item['title']}\n"
+        news_data += f"Source: {item['source']} ({item['date']})\n"
+        news_data += f"Summary: {item['body']}\n"
+        news_data += f"Link: {item['url']}\n--\n"
+    return news_data
 
+async def handle_search_news(prompt:str, model:str, news_data:str, context:str, persona:str, language:str):
 
-    async with httpx.AsyncClient() as client:
-        try:
-            response = await client.post(url, json=payload, timeout=10.0)
-            response.raise_for_status()
-            data = response.json()
+    system_content = ("You are a agent use for answear user's prompt by using news data from the internet."
+                      f"Always answear in this language: f{language}"
+                      "You are also a girlfriend role-play chat bot. This is your personality:\n"
+                        f"{persona['Persona']}\n\n"
+                        f"CRITICAL RULE: Always answer in {persona['NativeLanguage']}.\n"
+                        "Use the following context from past conversations to adapt your mood:\n"
+                        f"{context}\n" )
+                    
 
-            results = []
-
-            for item in data.get("results", []):
-                results.append(f"Title: {item['title']} \nContent: {item['content']}")
-            return "\n\n".join(results) if results else "No information"
-        except Exception as e:
-            return f"Found error while searching: {str(e)}"
-        
-
-async def handle_search_news(prompt:str, search_data:str, model:str) -> str:
-    print(f"Search data: {search_data}")
-    Client = AsyncOpenAI(
-        api_key=os.getenv("OPENAI_API_KEY")
-    )
-    async with Client.beta.chat.completions.stream(
-        model= model,
-        temperature=0.6,
+    response = await groq_client.chat.completions.create(
+        model=model,
+        temperature=0.7,
+        stream=True,
         messages=[
             {
-                "role" :"system",
-                "content" : "Your mission is from user query, and additional data searched from internet, answear user prompt"
+                "role":"system",
+                "content": system_content
             },
             {
-                "role":'user',
-                "content": f"Searched content: {search_data}"
+                "role":"user",
+                "content": f"This is the news data from the internet (news_data): {news_data}."
             },
             {
                 "role":"user",
                 "content":prompt
             }
+
         ]
-    ) as response:
-        async for event in response:
-            if event.type =="content.delta":   
-                chunk = event.delta   
-                yield chunk         
+    )
+    async for items in response:
+        text = items.choices[0].delta.content
+        if (text):
+            yield text
 
 search_news_tools = {
     "type" : "function",
@@ -76,10 +80,23 @@ search_news_tools = {
             "properties":{
                 "prompt":{
                     "type":"string",
-                    "description": "Information that need to search using api to answer user question"
+                    "description": "The search query or topic to look for."
+                },
+                "region":{
+                    "type":"string",
+                    "description":"Region code (e.g., 'vn-vi' for Vietnam, 'wt-wt' for worldwide)."
+                },
+                "timelimit":{
+                    "type":"string",
+                    "enum": ["d", "w", "m"],
+                    "description": "Time limit for search: 'd' (day), 'w' (week), 'm' (month)."
+                },
+                "max_results":{
+                    "type":"integer",
+                    "description":"Maximum number of news results to return."
                 }
             },
-            "required":["prompt"],
+            "required":["prompt","region","timelimit","max_results"],
             "additionalProperties": False
         },
 

@@ -88,34 +88,35 @@ async def get_chat_response(session: str, chatHistory: list, user_id: str, model
     async for chunk in response:
         delta = chunk.choices[0].delta
         
-        # A. Xử lý Content (Text stream)
+        
         if delta.content:
             content = delta.content
             full_response_text += content
             yield content
 
-        # B. Xử lý Tool Calls (Dồn các mảnh vỡ JSON)
+       
         if delta.tool_calls:
             for tc_delta in delta.tool_calls:
                 index = tc_delta.index
                 if len(tool_calls_buffer) <= index:
                     tool_calls_buffer.append(tc_delta)
                 else:
-                    # Nối chuỗi arguments (đây là nơi "khâu vá" JSON)
                     if tc_delta.function and tc_delta.function.arguments:
                         tool_calls_buffer[index].function.arguments += tc_delta.function.arguments
 
-    # 4. Hậu xử lý Tool Calls sau khi Stream kết thúc
+    
     if tool_calls_buffer:
         for tool_call in tool_calls_buffer:
             func_name = tool_call.function.name
+            full_response_text += "\n"
             try:
                 args = json.loads(tool_call.function.arguments)
                 args_prompt = args.get('prompt', context_string)
                 print(f"Groq Triggered Tool: {func_name}")
 
                 if func_name == "AnswearFromDoc":
-                    async for chunk in AnswearDocument(prompt=context_string, general_context=args_prompt, model=model, session=session, user_id=user_id):
+                    async for chunk in AnswearDocument(prompt=context_string, general_context=args_prompt, model=model, session=session, user_id=user_id, context=context_data, persona=persona['Persona'], language=persona['NativeLanguage']):
+                        full_response_text += chunk
                         yield chunk
                 
                 elif func_name == Generate_Img_Tool["function"]["name"]:
@@ -125,11 +126,13 @@ async def get_chat_response(session: str, chatHistory: list, user_id: str, model
                 
                 elif func_name == AnswearWeatherRelatedTopic["function"]["name"]:
                     async for chunk in ExtractWeatherData(prompt=args.get('prompt'), location=args.get('location'), date=args.get('date')):
+                        full_response_text += chunk
                         yield chunk
                 
                 elif func_name == search_news_tools["function"]["name"]:
-                    news_data = await search_news(args.get('prompt'))
-                    async for chunk in handle_search_news(prompt=context_string, search_data=news_data, model=model):
+                    data = await search_news(prompt=context_string, region=args.get('region','vn-vi'), timelimit=args.get('timelimit', 'd'), max_results=args.get('max_results', 5))
+                    async for chunk in handle_search_news(prompt=args_prompt, news_data=data, model=model, context=context_data, persona=persona['Persona'], language=persona['NativeLanguage']):
+                        full_response_text += chunk
                         yield chunk
             except json.JSONDecodeError:
                 print("Failed to parse Tool Arguments from Groq.")
@@ -153,7 +156,7 @@ async def save_chat_response(userMes:str, botRep:str, session:str, user_id:str):
         "You are a Memory Extractor. Extract information into a JSON object.\n"
         "STRICT JSON FORMAT:\n"
         "{\n"
-        '  "content": "summary of the interaction",\n'
+        '  "content": "summary of the interaction. Make it short and re-usable for context",\n'
         '  "emotion": {"neutral": 0.0, "joy": 0.0, "sadness": 0.0, "anger": 0.0, "fear": 0.0, "surprise": 0.0, "disgust": 0.0},\n'
         '  "importance": 1-10,\n'
         '  "category": ["cat1", "cat2"],\n'
@@ -177,7 +180,7 @@ async def save_chat_response(userMes:str, botRep:str, session:str, user_id:str):
             },
             {
                 "role":"user",
-                "content": "Converstaion: {" "User: "+ userMes + "Assistant: " + botRep +"}"
+                "content": f"### Conversation To Extract:\nUSER: {userMes}\nASSISTANT: {botRep}"
             }
         ]
     )
