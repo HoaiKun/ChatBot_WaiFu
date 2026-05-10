@@ -17,7 +17,8 @@ load_dotenv()
 api_key = os.getenv("OPENAI_API_KEY")
 groq_key = os.getenv("GROQ_API_KEY")
 client = AsyncOpenAI(
-    api_key= api_key
+    api_key= api_key,
+    base_url="https://api.openai.com/v1"
 )
 
 groqclient = AsyncOpenAI(
@@ -73,7 +74,7 @@ async def get_chat_response(session: str, chatHistory: list, user_id: str, model
     
     # 3. Gọi Groq API Stream
     # Note: Dùng groqclient đã khai báo ở trên
-    response = await groqclient.chat.completions.create(
+    response = await client.chat.completions.create(
         model=model,
         messages=messages,
         tools=tools,
@@ -114,7 +115,7 @@ async def get_chat_response(session: str, chatHistory: list, user_id: str, model
                 print(f"Groq Triggered Tool: {func_name}")
 
                 if func_name == "AnswearFromDoc":
-                    async for chunk in AnswearDocument(prompt=context_string, general_context=args_prompt, model=model, session=session, user_id=user_id, context=context_data, persona=persona['Persona'], language=persona['NativeLanguage']):
+                    async for chunk in AnswearDocument(prompt=context_string, general_context=args_prompt, model=model, session=session, user_id=user_id, context=context_data, persona=persona, language=persona['NativeLanguage']):
                         full_response_text += chunk
                         yield chunk
                 
@@ -130,7 +131,7 @@ async def get_chat_response(session: str, chatHistory: list, user_id: str, model
                 
                 elif func_name == search_news_tools["function"]["name"]:
                     data = await search_news(prompt=context_string, region=args.get('region','vn-vi'), timelimit=args.get('timelimit', 'd'), max_results=args.get('max_results', 5))
-                    async for chunk in handle_search_news(prompt=args_prompt, news_data=data, model=model, context=context_data, persona=persona['Persona'], language=persona['NativeLanguage']):
+                    async for chunk in handle_search_news(prompt=args_prompt, news_data=data, model=model, context=context_data, persona=persona, language=persona['NativeLanguage']):
                         full_response_text += chunk
                         yield chunk
             except json.JSONDecodeError:
@@ -176,9 +177,9 @@ async def save_chat_response(userMes:str, model:str, botRep:str, session:str, us
         base_url="http://localhost:11434/v1", # Trỏ về Ollama local
         api_key="ollama",
     )
-    response_memory = await groqclient.chat.completions.create(
+    response_memory = await ollmaclient.chat.completions.create(
 
-        model=model,
+        model="qwen2.5:7b",
         response_format= {"type": "json_object"},
         messages=[
             {

@@ -5,21 +5,22 @@
         {"Id" : 1, "Name":"Elysia", "Url" : "679de93ad4634728900347063142e930"},
         {"Id": 2, "Name":"Sarah","Url" : "933563129e564b19a115bedd57b7406a"},
         {"Id": 3, "Name":"E-Girl", "Url":"98655a12fa944e26b274c535e5e03842"},
-        {"Id": 4, "Name":"E-maid", "Url":"7bcd8078cfbc496cb50bf8d8ef137df4"}
+        {"Id": 4, "Name":"E-maid", "Url":"e3ed6c9d3657437fbe3adb8db096325d"},
+        {"Id": 4, "Name":"Takina Inoue", "Url":"c4974128a82e4a488c213014754ecd11"}
     ],
 
-    "ChatModelList" : [
-            {
-                "Id":0, "Name": "openai/gpt-oss-20b"
-            },
-            {
-                "Id":1, "Name": "openai/gpt-oss-120b"
-            },
-            {
-                "Id":2, "Name": "llama-3.3-70b-versatile"
-            }
-
-        ],
+        "ChatModelList" : [
+    {
+        "Id": 0, 
+        "Name": "gpt-4o-mini", 
+        "Description": "Budget"
+    },
+    {
+        "Id": 1, 
+        "Name": "gpt-4o", 
+        "Description": "Balance"
+    }
+],
 
     "PersonaSetting": [
         {

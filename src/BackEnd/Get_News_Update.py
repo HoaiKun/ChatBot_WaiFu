@@ -9,9 +9,10 @@ import inspect
 from duckduckgo_search import DDGS
 load_dotenv()
 groq_key = os.getenv("GROQ_API_KEY")
-groq_client = AsyncOpenAI(
+gpt_key = os.getenv("OPENAI_API_KEY")
+openaiclient = AsyncOpenAI(
     api_key= groq_key,
-    base_url="https://api.groq.com/openai/v1"
+    base_url="https://api.openai.com/v1"
 )         
 
 async def search_news(prompt:str, region:str = 'vn-vi', timelimit:str = 'd', max_results:int =5):
@@ -48,7 +49,7 @@ async def handle_search_news(prompt:str, model:str, news_data:str, context:str, 
                         "Critical: Make the conversation natural like a common chat between friends")
                     
 
-    response = await groq_client.chat.completions.create(
+    response = await openaiclient.chat.completions.create(
         model=model,
         temperature=0.7,
         stream=True,

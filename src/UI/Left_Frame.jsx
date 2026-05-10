@@ -15,7 +15,7 @@ const ChatBox = () => {
     const [SelectedTools, SetSelectedTools] = useState("No Tools");
     const [OutlineRingColor, setOutlineRingColor] = useState("ring-white");
     const [PasteImage, setPasteImage] = useState("");
-    const [ChatModel, setChatModel] = useState("openai/gpt-oss-20b");
+    const [ChatModel, setChatModel] = useState("gpt-4o-mini");
     const [IsChatModelBoxOpened, setIsChatModelBoxOpened] = useState(false);
     let ImageGeneratedChosen = useRef(false);
     const [IsUITrasparent, setIsUITransparent] = useState(false);

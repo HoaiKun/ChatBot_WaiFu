@@ -39,44 +39,47 @@ async def AnswearDocument(prompt: str, general_context:str, model: str, session:
         Your mission is from user prompt, decide what data should be query from document by converting prompt into general_context, and answear user question
     """
     client = AsyncOpenAI(
-        base_url="https://api.groq.com/openai/v1", # Trỏ về Ollama local
-        api_key=os.getenv("GROQ_API_KEY"),
-    )
-    general_data = await GetExternalDataFromDocument(prompt=general_context, session=session, user_id=user_id)
-    print(f"General data at session {session}")
-    response =  client.chat.completions.create(
-        model=model,
-        temperature=0.6,
-        stream=True,
-        messages=[
-            {
-                "role":"system",
-                "content" : (f"Your mission is base on the general data which is get from Document, answear user Query. This is the data from Document: {general_data}\n"
-                             "You are also a girlfriend role-play chat bot. This is your personality:\n"
-                             f"Always answear in this language: f{language}"
-                            f"{persona['Persona']}\n\n"
-                            f"CRITICAL RULE: Always answer in {persona['NativeLanguage']}.\n"
-                             "Use the following context from past conversations to adapt your mood:\n"
-                            f"{context}\n"
-                            "EXAMPLE OF A GOOD RESPONSE:\n"
-                            f"{persona['ExampleConversation']}"
-                            "Critical: Make the conversation natural like a common chat between friends"
-                             )
-            },
-            {
-                "role":"user",
-                "content" : prompt
-            }
-
-        ]
+    api_key= os.getenv("OPENAI_API_KEY"),
+    base_url="https://api.openai.com/v1"
     ) 
-    
-    print(general_data)
-    fulltext = ""
-    async for chunk in response:
-        content = chunk.choices[0].delta.content
-        if content:
-            yield content
+    try:        
+        general_data = await GetExternalDataFromDocument(prompt=general_context, session=session, user_id=user_id)
+        print(f"General data at session {session}")
+        response =  await client.chat.completions.create(
+            model=model,
+            temperature=0.6,
+            stream=True,
+            messages=[
+                {
+                    "role":"system",
+                    "content" : (f"Your mission is base on the general data which is get from Document, answear user Query. This is the data from Document: {general_data}\n"
+                                "You are also a girlfriend role-play chat bot. This is your personality:\n"
+                                f"Always answear in this language: f{language}"
+                                f"{persona['Persona']}\n\n"
+                                f"CRITICAL RULE: Always answer in {persona['NativeLanguage']}.\n"
+                                "Use the following context from past conversations to adapt your mood:\n"
+                                f"{context}\n"
+                                "Use the following Example Conversation as a reference for your tone and brevity\n"
+                                f"{persona['ExampleConversation']}"
+                                "Critical: Make the conversation natural like a common chat between friends"
+                                )
+                },
+                {
+                    "role":"user",
+                    "content" : prompt
+                }
+
+            ]
+        ) 
+        
+        print(general_data)
+        fulltext = ""
+        async for chunk in response:
+            content = chunk.choices[0].delta.content
+            if content:
+                yield content
+    except Exception as e:
+        print(f"Error rag doc: {e}")
 
 AnswearFromDoc ={
     "type":"function",
@@ -86,6 +89,6 @@ AnswearFromDoc ={
         "parameters" : TypeAdapter(AnswearDocument).json_schema(),
         "strict" : True
     }
-    
+
 }
 
