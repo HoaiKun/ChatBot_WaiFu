@@ -104,16 +104,19 @@ async def post_chat_respose(payload: ChatPayloadFormat,
     else:
         role = chatHistory[-1].role
         content = chatHistory[-1].content
-    await UpdateChatHistoryBySession(session=payload.session, 
-                               user_id=user_id, 
-                               role=role,
-                               content=content,
-                               metadata=payload.metadata)
     async def stream_and_collect():
         full_response = ""
         async for chunks in  get_chat_response(session=payload.session,chatHistory=chatHistory, model=target_model, PersonaID=PersonaID, user_id=user_id):
             full_response+=chunks
             yield chunks
+
+        background_task.add_task(
+            UpdateChatHistoryBySession,session=payload.session, 
+                               user_id=user_id, 
+                               role=role,
+                               content=content,
+                               metadata=payload.metadata
+        )
 
         background_task.add_task(
             UpdateChatHistoryBySession,session=payload.session, 
